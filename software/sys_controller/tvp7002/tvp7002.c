@@ -361,7 +361,7 @@ void tvp_source_setup(alt_8 modeid, video_type type, alt_u32 vlines, alt_u8 hz, 
         break;
     }
 
-    tvp_setup_hpll(video_modes[modeid].h_total, vlines, hz, !!(video_modes[modeid].flags & MODE_PLLDIVBY2));
+    tvp_setup_hpll(video_modes[modeid].h_total * ((video_modes[modeid].flags & MODE_2XPLLDIVBY1) ? 2 : 1), vlines, hz, !!(video_modes[modeid].flags & MODE_PLLDIVBY2));
 
     // Default (3,3) coast may lead to PLL jitter and sync loss (e.g. SNES)
     tvp_set_hpllcoast(pre_coast, post_coast);

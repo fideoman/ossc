@@ -271,7 +271,7 @@ status_t get_status(tvp_input_t input, video_format format)
             status = (status < MODE_CHANGE) ? MODE_CHANGE : status;
 
         if (update_cur_vm) {
-            if (video_modes[cm.id].flags & MODE_PLLDIVBY2)
+            if (video_modes[cm.id].flags & (MODE_PLLDIVBY2 | MODE_2XPLLDIVBY1))
                 h_samplerate = 2*video_modes[cm.id].h_total;
             else
                 h_samplerate = video_modes[cm.id].h_total;
@@ -295,7 +295,10 @@ status_t get_status(tvp_input_t input, video_format format)
         (tc.h_mask != cm.cc.h_mask) ||
         (tc.v_mask != cm.cc.v_mask) ||
         (tc.edtv_l2x != cm.cc.edtv_l2x) ||
-        (tc.interlace_pt != cm.cc.interlace_pt))
+        (tc.interlace_pt != cm.cc.interlace_pt) ||
+        (tc.ft_type != cm.cc.ft_type) ||
+        (tc.ft_delta != cm.cc.ft_delta)
+        )
         status = (status < INFO_CHANGE) ? INFO_CHANGE : status;
 
     if (tc.sampler_phase != cm.cc.sampler_phase)
@@ -347,6 +350,10 @@ status_t get_status(tvp_input_t input, video_format format)
 //
 // v_info:     [31]          [30]            [29:28]        [27:24]              [23:18]       [17:7]          [6]  [5:0]
 //           | V_SCANLINES | V_SCANLINEDIR | V_SCANLINEID | V_SCANLINESTR[3:0] | V_MASK[5:0] | V_ACTIVE[10:0] |   | V_BACKPORCH[5:0] |
+//
+// f_info:     [31:10]    [9:8]            [7:0]
+//           |         |  F_FILTER[1:0] | F_DELTA[7:0] |
+
 void set_videoinfo()
 {
     alt_u8 slid_target;
@@ -383,6 +390,7 @@ void set_videoinfo()
 
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_2_BASE, (cm.linemult<<30) | (cm.cc.l3_mode<<28) | (cm.cc.h_mask)<<22 | (video_modes[cm.id].h_active<<10) | video_modes[cm.id].h_backporch);
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_3_BASE, (sl_mode_fpga<<30) | (slid_target<<28) | (cm.cc.sl_str<<24) | (cm.cc.v_mask<<18) | (video_modes[cm.id].v_active<<7) | video_modes[cm.id].v_backporch);
+    IOWR_ALTERA_AVALON_PIO_DATA(PIO_5_BASE, (cm.cc.ft_type<<8) | (cm.cc.ft_delta<<0));
 
     if (video_modes[cm.id].type & VIDEO_EDTV)
         HDMITX_SetPixelRepetition(cm.cc.edtv_l2x, 0);

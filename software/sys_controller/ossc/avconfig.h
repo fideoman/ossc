@@ -64,6 +64,8 @@ typedef struct {
     alt_u8 edtv_l2x;
     alt_u8 interlace_pt;
     alt_u8 def_input;
+    alt_u8 ft_type;
+    alt_u8 ft_delta;
     color_setup_t col;
 } __attribute__((packed)) avconfig_t;
 

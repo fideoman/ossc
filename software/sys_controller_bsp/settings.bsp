@@ -2,11 +2,11 @@
 <sch:Settings xmlns:sch="http://www.altera.com/embeddedsw/bsp/schema">
         <BspType>hal</BspType>
         <BspVersion>default</BspVersion>
-        <BspGeneratedTimeStamp>Jan 7, 2017 11:01:41 PM</BspGeneratedTimeStamp>
-        <BspGeneratedUnixTimeStamp>1483822901087</BspGeneratedUnixTimeStamp>
-        <BspGeneratedLocation>./</BspGeneratedLocation>
+        <BspGeneratedTimeStamp>Jan 13, 2017 7:16:04 PM</BspGeneratedTimeStamp>
+        <BspGeneratedUnixTimeStamp>1484363764252</BspGeneratedUnixTimeStamp>
+        <BspGeneratedLocation>C:\Users\orion\ossc\software\sys_controller_bsp</BspGeneratedLocation>
         <BspSettingsFile>settings.bsp</BspSettingsFile>
-        <SopcDesignFile>../../sys.sopcinfo</SopcDesignFile>
+        <SopcDesignFile>..\..\sys.sopcinfo</SopcDesignFile>
         <JdiFile>default</JdiFile>
         <Cpu>nios2_qsys_0</Cpu>
         <SchemaVersion>1.9</SchemaVersion>
@@ -969,6 +969,12 @@
                 <addressRange>0x008210D0 - 0x008210D7</addressRange>
                 <addressSpan>8</addressSpan>
                 <attributes>printable</attributes>
+        </MemoryMap>
+        <MemoryMap>
+                <slaveDescriptor>pio_5</slaveDescriptor>
+                <addressRange>0x008210E0 - 0x008210EF</addressRange>
+                <addressSpan>16</addressSpan>
+                <attributes/>
         </MemoryMap>
         <LinkerSection>
                 <sectionName>.text</sectionName>

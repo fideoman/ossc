@@ -52,6 +52,20 @@
 `define HSYNC_LEADING_EDGE      ((prev_hs == `HI) & (HSYNC_in == `LO))
 `define HSYNC_TRAILING_EDGE     ((prev_hs == `LO) & (HSYNC_in == `HI))
 
+`define LINEBUF_NUM             4
+`define LINEBUF_READ_INDEX      (linebuf_4xmode ? linebuf_read_idx : {linebuf_read_idx[1], linebuf_hoffset_d2[10]})
+`define LINEBUF_WRITE_INDEX     (linebuf_4xmode ? linebuf_write_idx : {linebuf_write_idx[1], hcnt_1x[10]})
+
+`define FT_A                    0
+`define FT_B                    1
+`define FT_C                    2
+`define FT_D                    3
+`define FT_E                    4
+`define FT_F                    5
+`define FT_G                    6
+`define FT_H                    7
+`define FT_I                    8
+
 module scanconverter (
     input reset_n,
     input [7:0] R_in,
@@ -63,6 +77,7 @@ module scanconverter (
     input PCLK_in,
     input [31:0] h_info,
     input [31:0] v_info,
+    input [31:0] f_info,
     output reg [7:0] R_out,
     output reg [7:0] G_out,
     output reg [7:0] B_out,
@@ -83,26 +98,31 @@ wire linebuf_rdclock;
 
 wire pclk_act;
 wire [1:0] slid_act;
-
+reg [1:0] slid_pp0, slid_pp1, slid_pp2; 
+ 
 wire pclk_2x_lock, pclk_3x_lock, pclk_3x_lowfreq_lock;
 
 wire HSYNC_act, VSYNC_act;
-reg HSYNC_1x, HSYNC_2x, HSYNC_3x, HSYNC_3x_h1x, HSYNC_pp1;
-reg VSYNC_1x, VSYNC_2x, VSYNC_pp1;
+reg HSYNC_1x, HSYNC_2x, HSYNC_3x, HSYNC_3x_h1x, HSYNC_pp0, HSYNC_pp1, HSYNC_pp2;
+reg VSYNC_1x, VSYNC_2x, VSYNC_pp0, VSYNC_pp1, VSYNC_pp2;
 
 reg [11:0] HSYNC_start;
 
 reg FID_1x, FID_prev;
 
 wire DATA_enable_act;
-reg DATA_enable_pp1;
-
+reg DATA_enable_pp0, DATA_enable_pp1, DATA_enable_pp2; 
+ 
 wire [11:0] linebuf_hoffset; //Offset for line (max. 2047 pixels), MSB indicates which line is read/written
 wire [11:0] hcnt_act;
-reg [11:0] hcnt_1x, hcnt_2x, hcnt_3x, hcnt_4x, hcnt_3x_h1x, hcnt_3x_h4x, hcnt_3x_h5x;
+reg [11:0] hcnt_1x, hcnt_2x, hcnt_3x, hcnt_4x, hcnt_3x_h1x, hcnt_3x_h4x, hcnt_3x_h5x, hcnt_pp0, hcnt_pp1, hcnt_pp2;
+
+// alignment for 2x input clock
+reg hcnt_1x_skip, HSYNC_TRAILING_EDGE_d1, VSYNC_TRAILING_EDGE_d1;
+wire pclk_2x_05x, pclk_3x_05x, pclk_3x_h05x;
 
 wire [10:0] vcnt_act;
-reg [10:0] vcnt_1x, vcnt_1x_tvp, vcnt_2x, lines_1x, lines_2x;       //max. 2047
+reg [10:0] vcnt_1x, vcnt_1x_tvp, vcnt_2x, lines_1x, lines_2x, vcnt_pp0, vcnt_pp1;// vcnt_pp2;;       //max. 2047
 reg [9:0] vcnt_3x, vcnt_3x_h1x, lines_3x, lines_3x_h1x; //max. 1023
 
 reg h_enable_3x_prev4x, h_enable_3x_prev3x_h4x, h_enable_3x_prev3x_h5x;
@@ -121,6 +141,8 @@ reg prev_hs, prev_vs;
 reg [11:0] hmax[0:1];
 reg line_idx;
 reg [1:0] line_out_idx_2x, line_out_idx_3x, line_out_idx_3x_h1x;
+reg [1:0] col_out_idx_2x, col_out_idx_3x, col_out_idx_3x_h1x;
+wire [1:0] line_out_read, col_out_read;
 
 reg [23:0] warn_h_unstable, warn_pll_lock_lost, warn_pll_lock_lost_3x, warn_pll_lock_lost_3x_lowfreq;
 
@@ -135,12 +157,23 @@ reg [5:0] V_MASK;
 reg [1:0] H_LINEMULT;
 reg [1:0] H_L3MODE;
 reg [5:0] H_MASK;
+reg [7:0] F_DELTA;
+reg [1:0] F_FILTER;
 
 //8 bits per component -> 16.7M colors
-reg [7:0] R_1x, G_1x, B_1x, R_pp1, G_pp1, B_pp1;
+reg [7:0] R_1x, G_1x, B_1x, R_pp1, G_pp1, B_pp1, R_pp2, G_pp2, B_pp2;
 wire [7:0] R_lbuf, G_lbuf, B_lbuf;
-wire [7:0] R_act, G_act, B_act;
+//wire [7:0] R_act, G_act, B_act;
 
+// linebuffer access
+//wire [9:0] linebuf_address[`LINEBUF_NUM];
+wire linebuf_wren[`LINEBUF_NUM];
+reg [1:0] linebuf_read_idx_m1, linebuf_read_idx, linebuf_read_idx_a1, linebuf_write_idx;
+wire [23:0] linebuf_o[`LINEBUF_NUM];
+reg [11:0] linebuf_hoffset_d1, linebuf_hoffset_d2;
+reg linebuf_4xmode;
+reg [23:0] matrix_pp0[9];
+ 
 assign pclk_1x = PCLK_in;
 assign pclk_lock = {pclk_2x_lock, pclk_3x_lock, pclk_3x_lowfreq_lock};
 
@@ -152,6 +185,115 @@ assign pclk_out_4x = pclk_4x;
 assign pclk_out_3x_h4x = pclk_3x_h4x;
 assign pclk_out_3x_h5x = pclk_3x_h5x;
 
+//Filter logic
+function [23:0] apply_filter;
+    input enable;
+    input [23:0] data[9];
+    input [1:0] mode;
+    input [1:0] row;
+    input [1:0] col;
+    
+    reg [23:0] direct_o[3][3], scale_o[3][3], eagle_o[3][3], lq_o[3][3], filter_o[3][3];
+    reg cond;
+
+    begin
+    
+        for (int i = 0; i < 3; i = i + 1)
+            for (int j = 0; j < 3; j = j + 1)
+                direct_o[i][j] = data[`FT_E];
+
+        // A B C
+        // D E F
+        // G H I
+     
+        cond = cmp(data[`FT_B], data[`FT_H], 0) && cmp(data[`FT_D], data[`FT_F], 0);
+         
+        // eagle
+        eagle_o[0][0] = (cmp(data[`FT_D], data[`FT_A], 1) && cmp(data[`FT_A], data[`FT_B], 1)) ? data[`FT_A] : data[`FT_E];
+        eagle_o[0][1] = (((cmp(data[`FT_D], data[`FT_B], 1) && cmp(data[`FT_E], data[`FT_C], 0)) || (cmp(data[`FT_B], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_A], 0)))) ? avg(data[`FT_B], data[`FT_E]) : data[`FT_E];
+        eagle_o[0][2] = (cmp(data[`FT_B], data[`FT_C], 1) && cmp(data[`FT_C], data[`FT_F], 1)) ? data[`FT_C] : data[`FT_E];
+        eagle_o[1][0] = (((cmp(data[`FT_D], data[`FT_B], 1) && cmp(data[`FT_E], data[`FT_G], 0)) || (cmp(data[`FT_D], data[`FT_H], 1) && cmp(data[`FT_E], data[`FT_A], 0)))) ? avg(data[`FT_D], data[`FT_E]) : data[`FT_E];
+        eagle_o[1][1] = data[`FT_E];
+        eagle_o[1][2] = (((cmp(data[`FT_B], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_I], 0)) || (cmp(data[`FT_H], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_C], 0)))) ? avg(data[`FT_F], data[`FT_E]) : data[`FT_E];
+        eagle_o[2][0] = (cmp(data[`FT_D], data[`FT_G], 1) && cmp(data[`FT_G], data[`FT_H], 1)) ? data[`FT_G] : data[`FT_E];
+        eagle_o[2][1] = (((cmp(data[`FT_D], data[`FT_H], 1) && cmp(data[`FT_E], data[`FT_I], 0)) || (cmp(data[`FT_H], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_G], 0)))) ? avg(data[`FT_H], data[`FT_E]) : data[`FT_E];
+        eagle_o[2][2] = (cmp(data[`FT_H], data[`FT_I], 1) && cmp(data[`FT_I], data[`FT_F], 1)) ? data[`FT_I] : data[`FT_E];
+
+        // lq
+        if (cond) begin
+            lq_o[0][0] = (cmp(data[`FT_D], data[`FT_B], 1)) ? avg(data[`FT_B], data[`FT_E]) : data[`FT_E];
+            lq_o[0][1] = (((cmp(data[`FT_D], data[`FT_B], 1) && cmp(data[`FT_E], data[`FT_C], 0)) || (cmp(data[`FT_B], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_A], 0)))) ? avg(data[`FT_B], data[`FT_E]) : data[`FT_E];
+            lq_o[0][2] = (cmp(data[`FT_B], data[`FT_F], 1)) ? avg(data[`FT_B], data[`FT_E]) : data[`FT_E];
+            lq_o[1][0] = (((cmp(data[`FT_D], data[`FT_B], 1) && cmp(data[`FT_E], data[`FT_G], 0)) || (cmp(data[`FT_D], data[`FT_H], 1) && cmp(data[`FT_E], data[`FT_A], 0)))) ? avg(data[`FT_D], data[`FT_E]) : data[`FT_E];
+            lq_o[1][1] = data[`FT_E];
+            lq_o[1][2] = (((cmp(data[`FT_B], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_I], 0)) || (cmp(data[`FT_H], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_C], 0)))) ? avg(data[`FT_F], data[`FT_E]) : data[`FT_E];
+            lq_o[2][0] = (cmp(data[`FT_D], data[`FT_H], 1)) ? avg(data[`FT_H], data[`FT_E]) : data[`FT_E];
+            lq_o[2][1] = (((cmp(data[`FT_D], data[`FT_H], 1) && cmp(data[`FT_E], data[`FT_I], 0)) || (cmp(data[`FT_H], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_G], 0)))) ? avg(data[`FT_H], data[`FT_E]) : data[`FT_E];
+            lq_o[2][2] = (cmp(data[`FT_H], data[`FT_F], 1)) ? avg(data[`FT_H], data[`FT_E]) : data[`FT_E];
+        end
+        else
+            for (int i = 0; i < 3; i = i + 1)
+                for (int j = 0; j < 3; j = j + 1)
+                    lq_o[i][j] = data[`FT_E];
+
+        // scale
+        if (cond) begin
+            scale_o[0][0] = (cmp(data[`FT_D], data[`FT_B], 1)) ? data[`FT_B] : data[`FT_E];
+            scale_o[0][1] = (((cmp(data[`FT_D], data[`FT_B], 1) && cmp(data[`FT_E], data[`FT_C], 0)) || (cmp(data[`FT_B], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_A], 0)))) ? data[`FT_B] : data[`FT_E];
+            scale_o[0][2] = (cmp(data[`FT_B], data[`FT_F], 1)) ? data[`FT_B] : data[`FT_E];
+            scale_o[1][0] = (((cmp(data[`FT_D], data[`FT_B], 1) && cmp(data[`FT_E], data[`FT_G], 0)) || (cmp(data[`FT_D], data[`FT_H], 1) && cmp(data[`FT_E], data[`FT_A], 0)))) ? data[`FT_D] : data[`FT_E];
+            scale_o[1][1] = data[`FT_E];
+            scale_o[1][2] = (((cmp(data[`FT_B], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_I], 0)) || (cmp(data[`FT_H], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_C], 0)))) ? data[`FT_F] : data[`FT_E];
+            scale_o[2][0] = (cmp(data[`FT_D], data[`FT_H], 1)) ? data[`FT_H] : data[`FT_E];
+            scale_o[2][1] = (((cmp(data[`FT_D], data[`FT_H], 1) && cmp(data[`FT_E], data[`FT_I], 0)) || (cmp(data[`FT_H], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_G], 0)))) ? data[`FT_H] : data[`FT_E];
+            scale_o[2][2] = (cmp(data[`FT_H], data[`FT_F], 1)) ? data[`FT_H] : data[`FT_E];
+        end
+        else
+            for (int i = 0; i < 3; i = i + 1)
+                for (int j = 0; j < 3; j = j + 1)
+                    scale_o[i][j] = data[`FT_E];
+
+        case (mode)
+            0: filter_o = direct_o;
+            1: filter_o = eagle_o;
+            2: filter_o = lq_o;
+            3: filter_o = scale_o;
+        endcase
+          
+        apply_filter = filter_o[row][col];
+    end
+    endfunction
+   
+function cmp;
+    input [23:0] a;
+    input [23:0] b;
+    input eq;
+    reg [7:0] a_r, a_g, a_b;
+    reg[7:0] b_r, b_g, b_b;
+    reg ret;
+    
+    begin
+        { a_r, a_b, a_g } = a;
+        { b_r, b_b, b_g } = b;
+
+        ret = (((a_r >= b_r) ? a_r - b_r : b_r - a_r) < F_DELTA) && (((a_b >= b_b) ? a_b - b_b : b_b - a_b) < F_DELTA) && (((a_g >= b_g) ? a_g - b_g : b_g - a_g) < F_DELTA);
+    
+        if (eq == 1)
+            cmp = ret;
+        else
+            cmp = !ret;            
+    end
+    endfunction
+
+function [23:0] avg;
+    input [23:0] a;
+    input [23:0] b;
+    
+    begin
+        avg = (((a[23:16] + b[23:16]) >> 1) << 16) | (((a[15:8] + b[15:8]) >> 1) << 8) | (((a[7:0] + b[7:0]) >> 1) << 0);
+    end
+    endfunction
+    
 //Scanline generation
 function [7:0] apply_scanlines;
     input [1:0] mode;
@@ -209,9 +351,9 @@ always @(*)
 begin
     case (H_LINEMULT)
     `LINEMULT_DISABLE: begin
-        R_act = R_1x;
-        G_act = G_1x;
-        B_act = B_1x;
+        //R_act = R_1x;
+        //G_act = G_1x;
+        //B_act = B_1x;
         DATA_enable_act = (h_enable_1x & v_enable_1x);
         PCLK_out = pclk_out_1x;
         HSYNC_act = HSYNC_1x;
@@ -225,9 +367,9 @@ begin
         vcnt_act = vcnt_1x;
     end
     `LINEMULT_DOUBLE: begin
-        R_act = R_lbuf;
-        G_act = G_lbuf;
-        B_act = B_lbuf;
+        //R_act = R_lbuf;
+        //G_act = G_lbuf;
+        //B_act = B_lbuf;
         DATA_enable_act = (h_enable_2x & v_enable_2x);
         PCLK_out = pclk_out_2x;
         HSYNC_act = HSYNC_2x;
@@ -241,9 +383,9 @@ begin
         vcnt_act = vcnt_2x>>1;
     end
     `LINEMULT_TRIPLE: begin
-        R_act = R_lbuf;
-        G_act = G_lbuf;
-        B_act = B_lbuf;
+        //R_act = R_lbuf;
+        //G_act = G_lbuf;
+        //B_act = B_lbuf;
         VSYNC_act = VSYNC_1x;
         case (H_L3MODE)
         `LINETRIPLE_M0: begin
@@ -297,9 +439,9 @@ begin
         endcase
     end
     default: begin
-        R_act = 0;
-        G_act = 0;
-        B_act = 0;
+        //R_act = 0;
+        //G_act = 0;
+        //B_act = 0;
         DATA_enable_act = 0;
         PCLK_out = 0;
         HSYNC_act = 0;
@@ -319,6 +461,7 @@ pll_2x pll_linedouble (
     .areset ( (H_LINEMULT != `LINEMULT_DOUBLE) ),
     .inclk0 ( PCLK_in ),
     .c0 ( pclk_2x ),
+    .c1 ( pclk_2x_05x ),
     .locked ( pclk_2x_lock )
 );
 
@@ -327,6 +470,7 @@ pll_3x pll_linetriple (
     .inclk0 ( PCLK_in ),
     .c0 ( pclk_3x ),        // sampling clock for 240p: 1280 or 960 samples & MODE0: 1280 output pixels from 1280 input samples (16:9)
     .c1 ( pclk_4x ),        // MODE1: 1280 output pixels from 960 input samples (960 drawn -> 4:3 aspect)
+    .c2 ( pclk_3x_05x ),
     .locked ( pclk_3x_lock )
 );
 
@@ -336,53 +480,219 @@ pll_3x_lowfreq pll_linetriple_lowfreq (
     .c0 ( pclk_3x_h1x ),    // sampling clock for 240p: 320 or 256 samples
     .c1 ( pclk_3x_h4x ),    // MODE2: 1280 output pixels from 320 input samples (960 drawn -> 4:3 aspect)
     .c2 ( pclk_3x_h5x ),    // MODE3: 1280 output pixels from 256 input samples (1024 drawn -> 5:4 aspect)
+    .c3 ( pclk_3x_h05x ),
     .locked ( pclk_3x_lowfreq_lock )
 );
 
+always @(*)
+begin
+    for (int i = 0; i < `LINEBUF_NUM; i++)
+        if (i == `LINEBUF_WRITE_INDEX)
+            linebuf_wren[i] = 1'b1;
+        else
+            linebuf_wren[i] = 1'b0;
+    //linebuf_wren[0] = ~line_idx & ~hcnt_1x[10];
+    //linebuf_wren[1] = ~line_idx &  hcnt_1x[10];
+    //linebuf_wren[2] =  line_idx & ~hcnt_1x[10];
+    //linebuf_wren[3] =  line_idx &  hcnt_1x[10];
+            
+    //{ R_lbuf, G_lbuf, B_lbuf } = linebuf_o[`LINEBUF_READ_INDEX];
+end
+
+always @(posedge pclk_1x or negedge reset_n)
+begin
+    if (!reset_n) begin
+        linebuf_read_idx_m1 <= 3;
+        linebuf_read_idx <= 0;
+        linebuf_read_idx_a1 <= 1;
+        linebuf_write_idx <= 2;
+        
+        // linebuf_read_idx_m1_d1 <= 0;
+        // linebuf_read_idx_d1 <= 0;
+        // linebuf_read_idx_a1_d1 <= 0;
+
+        // linebuf_read_idx_m1_d2 <= 0;
+        // linebuf_read_idx_d2 <= 0;
+        // linebuf_read_idx_a1_d2 <= 0;
+    end
+    else begin
+        if (`HSYNC_TRAILING_EDGE) begin
+            linebuf_read_idx_m1 <= linebuf_4xmode ? linebuf_read_idx : linebuf_read_idx_a1;
+            linebuf_read_idx <= linebuf_4xmode ? linebuf_read_idx_a1 : linebuf_write_idx;
+            linebuf_read_idx_a1 <= linebuf_4xmode ? linebuf_write_idx : linebuf_read_idx_m1;
+            linebuf_write_idx <= linebuf_4xmode ? linebuf_read_idx_m1 : linebuf_read_idx;
+        end
+
+        // linebuf_read_idx_m1_d1 <= linebuf_read_idx_m1;
+        // linebuf_read_idx_d1 <= linebuf_read_idx;
+        // linebuf_read_idx_a1_d1 <= linebuf_read_idx_a1;
+
+        // linebuf_read_idx_m1_d2 <= linebuf_read_idx_m1_d1;
+        // linebuf_read_idx_d2 <= linebuf_read_idx_d1;
+        // linebuf_read_idx_a1_d2 <= linebuf_read_idx_a1_d1;
+    end
+end
+
 //TODO: add secondary buffers for interlaced signals with alternative field order
-linebuf linebuf_rgb (
+// linebuf linebuf_rgb (
+    // .data ( {R_1x, G_1x, B_1x} ),
+    // .rdaddress ( linebuf_hoffset + (~line_idx << 11) ),
+    // .rdclock ( linebuf_rdclock ),
+    // .wraddress ( hcnt_1x + (line_idx << 11) ),
+    // .wrclock ( pclk_1x ),
+    // .wren ( 1'b1 ),
+    // .q ( {R_lbuf, G_lbuf, B_lbuf} )
+// );
+
+linebuf_1k linebuf_rgb[`LINEBUF_NUM] (
     .data ( {R_1x, G_1x, B_1x} ),
-    .rdaddress ( linebuf_hoffset + (~line_idx << 11) ),
+    .rdaddress ( linebuf_hoffset[9:0] ),
     .rdclock ( linebuf_rdclock ),
-    .wraddress ( hcnt_1x + (line_idx << 11) ),
+    .wraddress ( hcnt_1x[9:0] ),
     .wrclock ( pclk_1x ),
-    .wren ( 1'b1 ),
-    .q ( {R_lbuf, G_lbuf, B_lbuf} )
+    .wren ( linebuf_wren ),
+    .q ( linebuf_o )
 );
+
+// scaling filter indices
+always @(*)
+begin
+    case (H_LINEMULT)
+    `LINEMULT_DISABLE: begin
+        line_out_read = 1;
+        col_out_read = 1;
+    end
+    `LINEMULT_DOUBLE: begin
+        // line2x mode reads the 4 corners of the matrix
+        line_out_read = line_out_idx_2x<<1;
+        col_out_read = col_out_idx_2x<<1;
+    end
+    `LINEMULT_TRIPLE:
+        case (H_L3MODE)
+            `LINETRIPLE_M0: begin
+                line_out_read = line_out_idx_3x;
+                col_out_read = col_out_idx_3x;
+            end
+            `LINETRIPLE_M1: begin
+                line_out_read = line_out_idx_3x;
+                col_out_read = col_out_idx_3x;
+            end
+            `LINETRIPLE_M2: begin
+                line_out_read = line_out_idx_3x_h1x;
+                col_out_read = col_out_idx_3x_h1x;
+            end
+            `LINETRIPLE_M3: begin
+                line_out_read = line_out_idx_3x_h1x;
+                col_out_read = col_out_idx_3x_h1x;
+            end
+        endcase
+    default: begin
+        line_out_read = 0;
+        col_out_read = 0;
+    end
+    endcase    
+end
 
 //Postprocess pipeline
 always @(posedge pclk_act or negedge reset_n)
 begin
     if (!reset_n)
         begin
+            // R_pp0 <= 8'h00;
+            // G_pp0 <= 8'h00;
+            // B_pp0 <= 8'h00;
+            HSYNC_pp0 <= 1'b0;
+            VSYNC_pp0 <= 1'b0;
+            DATA_enable_pp0 <= 1'b0;
+            hcnt_pp0 <= 0;
+            vcnt_pp0 <= 0;
+            slid_pp0 <= 0;
+            //lines_out_pp0 <= 0;
+
             R_pp1 <= 8'h00;
             G_pp1 <= 8'h00;
-            G_pp1 <= 8'h00;
+            B_pp1 <= 8'h00;
             HSYNC_pp1 <= 1'b0;
             VSYNC_pp1 <= 1'b0;
             DATA_enable_pp1 <= 1'b0;
+            hcnt_pp1 <= 0;
+            vcnt_pp1 <= 0;
+            slid_pp1 <= 0;
+            //lines_out_pp1 <= 0;
+
+            R_pp2 <= 8'h00;
+            G_pp2 <= 8'h00;
+            B_pp2 <= 8'h00;
+            HSYNC_pp2 <= 1'b0;
+            VSYNC_pp2 <= 1'b0;
+            DATA_enable_pp2 <= 1'b0;
+            hcnt_pp2 <= 0;
+            // vcnt_pp2 <= 0;
+            slid_pp2 <= 0;
+            //lines_out_pp2 <= 0;
+
             R_out <= 8'h00;
             G_out <= 8'h00;
-            G_out <= 8'h00;
+            B_out <= 8'h00;
             HSYNC_out <= 1'b0;
             VSYNC_out <= 1'b0;
             DATA_enable <= 1'b0;
+            
+            for (int i = 0; i < 9; i = i + 1)
+                matrix_pp0[i] <= 24'h000000;
+                
+            linebuf_hoffset_d1 <= 0;
+            linebuf_hoffset_d2 <= 0;
         end
     else
         begin
-            R_pp1 <= apply_mask(1, R_act, hcnt_act, H_BACKPORCH+H_MASK, H_BACKPORCH+H_ACTIVE-H_MASK, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
-            G_pp1 <= apply_mask(1, G_act, hcnt_act, H_BACKPORCH+H_MASK, H_BACKPORCH+H_ACTIVE-H_MASK, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
-            B_pp1 <= apply_mask(1, B_act, hcnt_act, H_BACKPORCH+H_MASK, H_BACKPORCH+H_ACTIVE-H_MASK, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
-            HSYNC_pp1 <= HSYNC_act;
-            VSYNC_pp1 <= VSYNC_act;
-            DATA_enable_pp1 <= DATA_enable_act;
+            // flop lbuf output
+            // [ A B C ]
+            // [ D E F ]
+            // [ G H I ]
+            matrix_pp0[`FT_A] <= matrix_pp0[`FT_B];  matrix_pp0[`FT_B] <= matrix_pp0[`FT_C];  matrix_pp0[`FT_C] <= linebuf_o[linebuf_read_idx_m1];
+            matrix_pp0[`FT_D] <= matrix_pp0[`FT_E];  matrix_pp0[`FT_E] <= matrix_pp0[`FT_F];  matrix_pp0[`FT_F] <= linebuf_o[`LINEBUF_READ_INDEX];
+            matrix_pp0[`FT_G] <= matrix_pp0[`FT_H];  matrix_pp0[`FT_H] <= matrix_pp0[`FT_I];  matrix_pp0[`FT_I] <= linebuf_o[linebuf_read_idx_a1];
+            HSYNC_pp0 <= HSYNC_act;
+            VSYNC_pp0 <= VSYNC_act;
+            DATA_enable_pp0 <= DATA_enable_act;
+            hcnt_pp0 <= hcnt_act;
+            vcnt_pp0 <= vcnt_act;
+            slid_pp0 <= slid_act;
+            //lines_out_pp0 <= lines_act;
+
+            // scaling filter
+            { R_pp1, G_pp1, B_pp1 } <= apply_filter(1, matrix_pp0, (linebuf_4xmode ? F_FILTER : 0), line_out_read, col_out_read);
+            HSYNC_pp1 <= HSYNC_pp0;
+            VSYNC_pp1 <= VSYNC_pp0;
+            DATA_enable_pp1 <= DATA_enable_pp0;
+            hcnt_pp1 <= hcnt_pp0;
+            vcnt_pp1 <= vcnt_pp0;
+            slid_pp1 <= slid_pp0;
+            //lines_out_pp1 <= lines_out_pp0;
             
-            R_out <= apply_scanlines(V_SCANLINES, R_pp1, V_SCANLINESTR, V_SCANLINEID, slid_act, hcnt_act[0], FID_1x);
-            G_out <= apply_scanlines(V_SCANLINES, G_pp1, V_SCANLINESTR, V_SCANLINEID, slid_act, hcnt_act[0], FID_1x);
-            B_out <= apply_scanlines(V_SCANLINES, B_pp1, V_SCANLINESTR, V_SCANLINEID, slid_act, hcnt_act[0], FID_1x);
-            HSYNC_out <= HSYNC_pp1;
-            VSYNC_out <= VSYNC_pp1;
-            DATA_enable <= DATA_enable_pp1;
+            // mask
+            R_pp2 <= apply_mask(1, R_pp1, hcnt_pp1, H_BACKPORCH+H_MASK, H_BACKPORCH+H_ACTIVE-H_MASK, vcnt_pp1, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
+            G_pp2 <= apply_mask(1, G_pp1, hcnt_pp1, H_BACKPORCH+H_MASK, H_BACKPORCH+H_ACTIVE-H_MASK, vcnt_pp1, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
+            B_pp2 <= apply_mask(1, B_pp1, hcnt_pp1, H_BACKPORCH+H_MASK, H_BACKPORCH+H_ACTIVE-H_MASK, vcnt_pp1, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
+            HSYNC_pp2 <= HSYNC_pp1;
+            VSYNC_pp2 <= VSYNC_pp1;
+            DATA_enable_pp2 <= DATA_enable_pp1;
+            hcnt_pp2 <= hcnt_pp1;
+            //vcnt_pp2 <= vcnt_pp1;
+            slid_pp2 <= slid_pp1;
+            //lines_out_pp2 <= lines_out_pp1;
+            
+            // scanlines
+            R_out <= apply_scanlines(V_SCANLINES, R_pp2, V_SCANLINESTR, V_SCANLINEID, slid_pp2, hcnt_pp2[0], FID_1x);
+            G_out <= apply_scanlines(V_SCANLINES, G_pp2, V_SCANLINESTR, V_SCANLINEID, slid_pp2, hcnt_pp2[0], FID_1x);
+            B_out <= apply_scanlines(V_SCANLINES, B_pp2, V_SCANLINESTR, V_SCANLINEID, slid_pp2, hcnt_pp2[0], FID_1x);
+            HSYNC_out <= HSYNC_pp2;
+            VSYNC_out <= VSYNC_pp2;
+            DATA_enable <= DATA_enable_pp2;
+
+            linebuf_hoffset_d1 <= linebuf_hoffset;
+            linebuf_hoffset_d2 <= linebuf_hoffset_d1;
         end
 end
 
@@ -448,6 +758,8 @@ begin
             V_SCANLINEID <= 0;
             V_SCANLINESTR <= 0;
             V_MASK <= 0;
+            F_FILTER <= 0;
+            F_DELTA <= 0;
             prev_hs <= 0;
             prev_vs <= 0;
             HSYNC_start <= 0;
@@ -459,6 +771,11 @@ begin
             h_enable_1x <= 0;
             v_enable_1x <= 0;
             FID_1x <= 0;
+            
+            hcnt_1x_skip <= 1'b0;
+            HSYNC_TRAILING_EDGE_d1 <= 1'b0;
+            VSYNC_TRAILING_EDGE_d1 <= 1'b0;
+            linebuf_4xmode <= 1'b0;
         end
     else
         begin
@@ -470,10 +787,14 @@ begin
                     vcnt_1x <= vcnt_1x + 1'b1;
                     vcnt_1x_tvp <= vcnt_1x_tvp + 1'b1;
                     FID_1x <= fpga_vsyncgen[`VSYNCGEN_CHOPMID_BIT] ? 1'b0 : (fpga_vsyncgen[`VSYNCGEN_GENMID_BIT] ? (vcnt_1x > (V_BACKPORCH + V_ACTIVE)) : FID_in);
+
+                    hcnt_1x_skip <= 1'b1;
                 end
             else
                 begin
-                    hcnt_1x <= hcnt_1x + 1'b1;
+                    if (!hcnt_1x_skip || (H_LINEMULT != `LINEMULT_TRIPLE) || !H_L3MODE[1])
+                        hcnt_1x <= hcnt_1x + 1'b1;
+                    hcnt_1x_skip <= !hcnt_1x_skip;
                 end
 
             if (`VSYNC_TRAILING_EDGE) //should be checked at every pclk_1x?
@@ -506,6 +827,8 @@ begin
                     V_SCANLINEID <= v_info[29:28];
                     V_SCANLINESTR <= ((v_info[27:24]+8'h01)<<4)-1'b1;
                     V_MASK <= v_info[23:18];
+                    F_DELTA <= f_info[7:0];
+                    F_FILTER <= f_info[9:8];
                 end
                 
             prev_hs <= HSYNC_in;
@@ -515,6 +838,9 @@ begin
             if (`HSYNC_LEADING_EDGE)
                 HSYNC_start <= hcnt_1x;
             
+            //R_1x <= 1'b1 ? 8'hFF : R_in;
+            //G_1x <= 1'b1 ? 8'hFF : G_in;
+            //B_1x <= 1'b1 ? 8'hFF : B_in;
             R_1x <= R_in;
             G_1x <= G_in;
             B_1x <= B_in;
@@ -529,6 +855,11 @@ begin
             
             h_enable_1x <= ((hcnt_1x >= H_BACKPORCH) & (hcnt_1x < H_BACKPORCH + H_ACTIVE));
             v_enable_1x <= ((vcnt_1x >= V_BACKPORCH) & (vcnt_1x < V_BACKPORCH + V_ACTIVE)); //- FID_in ???
+
+            HSYNC_TRAILING_EDGE_d1 <= ((H_LINEMULT != `LINEMULT_TRIPLE) || !H_L3MODE[1]) ? 0 : `HSYNC_TRAILING_EDGE;
+            VSYNC_TRAILING_EDGE_d1 <= ((H_LINEMULT != `LINEMULT_TRIPLE) || !H_L3MODE[1]) ? 0 : `VSYNC_TRAILING_EDGE;
+
+            linebuf_4xmode <= (F_FILTER != 0) && (hmax[0] < 1024);
         end
 end
 
@@ -545,28 +876,34 @@ begin
             h_enable_2x <= 0;
             v_enable_2x <= 0;
             line_out_idx_2x <= 0;
+            col_out_idx_2x <= 0;
         end
     else
         begin
-            if ((pclk_1x == 1'b0) & `HSYNC_TRAILING_EDGE)   //sync with posedge of pclk_1x
+            if ((pclk_2x_05x == 1'b0) & (`HSYNC_TRAILING_EDGE | HSYNC_TRAILING_EDGE_d1))   //sync with posedge of pclk_1x
                 begin
                     hcnt_2x <= 0;
                     line_out_idx_2x <= 0;
+                    col_out_idx_2x <= 0;
                 end
             else if (hcnt_2x == hmax[~line_idx]) //line_idx_prev?
                 begin
                     hcnt_2x <= 0;
                     line_out_idx_2x <= line_out_idx_2x + 1'b1;
+                    col_out_idx_2x <= 0;
                 end
             else
-                hcnt_2x <= hcnt_2x + 1'b1;
+                begin
+                    hcnt_2x <= hcnt_2x + 1'b1;
+                    col_out_idx_2x <= (col_out_idx_2x + 1'b1) & 1'b1;
+                end
 
             if (hcnt_2x == 0)
                 vcnt_2x <= vcnt_2x + 1'b1;
             
-            if ((pclk_1x == 1'b0) & (fpga_vsyncgen[`VSYNCGEN_GENMID_BIT] == 1'b1))
+            if ((pclk_2x_05x == 1'b0) & (fpga_vsyncgen[`VSYNCGEN_GENMID_BIT] == 1'b1))
                 begin
-                    if (`VSYNC_TRAILING_EDGE)
+                    if ((`VSYNC_TRAILING_EDGE | VSYNC_TRAILING_EDGE_d1))
                         vcnt_2x <= 0;
                     else if (vcnt_2x == lines_1x)
                         begin
@@ -574,13 +911,13 @@ begin
                             lines_2x <= vcnt_2x;
                         end
                 end
-            else if ((pclk_1x == 1'b0) & `VSYNC_TRAILING_EDGE & !(`FALSE_FIELD)) //sync with posedge of pclk_1x
+            else if ((pclk_2x_05x == 1'b0) & (`VSYNC_TRAILING_EDGE | VSYNC_TRAILING_EDGE_d1) & !(`FALSE_FIELD)) //sync with posedge of pclk_1x
                 begin
                     vcnt_2x <= 0;
                     lines_2x <= vcnt_2x;
                 end
                 
-            if (pclk_1x == 1'b0)
+            if (pclk_2x_05x == 1'b0)
                 begin
                     if (fpga_vsyncgen[`VSYNCGEN_GENMID_BIT] == 1'b1)
                         VSYNC_2x <= (vcnt_2x >= lines_1x - `VSYNCGEN_LEN) ? 1'b0 : 1'b1;
@@ -609,26 +946,32 @@ begin
             pclk_3x_cnt <= 0;
             pclk_1x_prev3x <= 0;
             line_out_idx_3x <= 0;
+            col_out_idx_3x <= 0;
         end
     else
         begin
-            if ((pclk_3x_cnt == 0) & `HSYNC_TRAILING_EDGE)  //sync with posedge of pclk_1x
+            if ((pclk_3x_cnt == 0) & (`HSYNC_TRAILING_EDGE | HSYNC_TRAILING_EDGE_d1))  //sync with posedge of pclk_1x
                 begin
                     hcnt_3x <= 0;
                     line_out_idx_3x <= 0;
+                    col_out_idx_3x <= 0;
                 end
             else if (hcnt_3x == hmax[~line_idx]) //line_idx_prev?
                 begin
                     hcnt_3x <= 0;
                     line_out_idx_3x <= line_out_idx_3x + 1'b1;
+                    col_out_idx_3x <= 0;
                 end
             else
-                hcnt_3x <= hcnt_3x + 1'b1;
+                begin
+                    hcnt_3x <= hcnt_3x + 1'b1;
+                    col_out_idx_3x <= (col_out_idx_3x < 2) ? (col_out_idx_3x + 1'b1) : 0;
+                end
 
             if (hcnt_3x == 0)
                 vcnt_3x <= vcnt_3x + 1'b1;
             
-            if ((pclk_3x_cnt == 0) & `VSYNC_TRAILING_EDGE & !(`FALSE_FIELD)) //sync with posedge of pclk_1x
+            if ((pclk_3x_cnt == 0) & (`VSYNC_TRAILING_EDGE | VSYNC_TRAILING_EDGE_d1) & !(`FALSE_FIELD)) //sync with posedge of pclk_1x
                 begin
                     vcnt_3x <= 0;
                     lines_3x <= vcnt_3x;
@@ -640,12 +983,12 @@ begin
             v_enable_3x <= ((vcnt_3x >= (3*V_BACKPORCH)) & (vcnt_3x < (3*(V_BACKPORCH + V_ACTIVE))));   //multiplier generated!!!
             
             //read pclk_1x to examine when edges are synced (pclk_1x=1 @ 120deg & pclk_1x=0 @ 240deg)
-            if (((pclk_1x_prev3x == 1'b1) & (pclk_1x == 1'b0)) | (pclk_3x_cnt == 2'h2))
+            if (((pclk_1x_prev3x == 1'b1) & (pclk_3x_05x == 1'b0)) | (pclk_3x_cnt == 2'h2))
                 pclk_3x_cnt <= 0;
             else
                 pclk_3x_cnt <= pclk_3x_cnt + 1'b1;
                 
-            pclk_1x_prev3x <= pclk_1x;
+            pclk_1x_prev3x <= pclk_3x_05x;
         end
 end
 
@@ -685,26 +1028,32 @@ begin
             pclk_3x_h1x_cnt <= 0;
             pclk_1x_prev3x_h1x <= 0;
             line_out_idx_3x_h1x <= 0;
+            col_out_idx_3x_h1x <= 0;
         end
     else
         begin
-            if ((pclk_3x_h1x_cnt == 0) & `HSYNC_TRAILING_EDGE)  //sync with posedge of pclk_1x
+            if ((pclk_3x_h1x_cnt == 0) & (`HSYNC_TRAILING_EDGE | HSYNC_TRAILING_EDGE_d1))  //sync with posedge of pclk_1x
                 begin
                     hcnt_3x_h1x <= 0;
                     line_out_idx_3x_h1x <= 0;
+                    col_out_idx_3x_h1x <= 0;
                 end
             else if (hcnt_3x_h1x == hmax[~line_idx]) //line_idx_prev?
                 begin
                     hcnt_3x_h1x <= 0;
                     line_out_idx_3x_h1x <= line_out_idx_3x_h1x + 1'b1;
+                    col_out_idx_3x_h1x <= 0;
                 end
             else
-                hcnt_3x_h1x <= hcnt_3x_h1x + 1'b1;
+                begin
+                    hcnt_3x_h1x <= hcnt_3x_h1x + 1'b1;
+                    col_out_idx_3x_h1x <= (col_out_idx_3x_h1x < 2) ? (col_out_idx_3x_h1x + 1'b1) : 0;
+                end
 
             if (hcnt_3x_h1x == 0)
                 vcnt_3x_h1x <= vcnt_3x_h1x + 1'b1;
             
-            if ((pclk_3x_h1x_cnt == 0) & `VSYNC_TRAILING_EDGE & !(`FALSE_FIELD)) //sync with posedge of pclk_1x
+            if ((pclk_3x_h1x_cnt == 0) & (`VSYNC_TRAILING_EDGE | VSYNC_TRAILING_EDGE_d1) & !(`FALSE_FIELD)) //sync with posedge of pclk_1x
                 begin
                     vcnt_3x_h1x <= 0;
                     lines_3x_h1x <= vcnt_3x_h1x;
@@ -716,12 +1065,12 @@ begin
             v_enable_3x_h1x <= ((vcnt_3x_h1x >= (3*V_BACKPORCH)) & (vcnt_3x_h1x < (3*(V_BACKPORCH + V_ACTIVE))));   //multiplier generated!!!
             
             //read pclk_1x to examine when edges are synced (pclk_1x=1 @ 120deg & pclk_1x=0 @ 240deg)
-            if (((pclk_1x_prev3x_h1x == 1'b1) & (pclk_1x == 1'b0)) | (pclk_3x_h1x_cnt == 2'h2))
+            if (((pclk_1x_prev3x_h1x == 1'b1) & (pclk_3x_h05x == 1'b0)) | (pclk_3x_h1x_cnt == 2'h2))
                 pclk_3x_h1x_cnt <= 0;
             else
                 pclk_3x_h1x_cnt <= pclk_3x_h1x_cnt + 1'b1;
                 
-            pclk_1x_prev3x_h1x <= pclk_1x;
+            pclk_1x_prev3x_h1x <= pclk_3x_h05x;
         end
 end
 

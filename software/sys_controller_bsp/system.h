@@ -4,7 +4,7 @@
  * Machine generated for CPU 'nios2_qsys_0' in SOPC Builder design 'sys'
  * SOPC Builder design path: ../../sys.sopcinfo
  *
- * Generated: Sat Dec 31 11:45:57 EET 2016
+ * Generated: Fri Jan 13 19:16:04 PST 2017
  */
 
 /*
@@ -453,6 +453,33 @@
 #define PIO_4_RESET_VALUE 0
 #define PIO_4_SPAN 16
 #define PIO_4_TYPE "altera_avalon_pio"
+
+
+/*
+ * pio_5 configuration
+ *
+ */
+
+#define ALT_MODULE_CLASS_pio_5 altera_avalon_pio
+#define PIO_5_BASE 0x8210e0
+#define PIO_5_BIT_CLEARING_EDGE_REGISTER 0
+#define PIO_5_BIT_MODIFYING_OUTPUT_REGISTER 0
+#define PIO_5_CAPTURE 0
+#define PIO_5_DATA_WIDTH 32
+#define PIO_5_DO_TEST_BENCH_WIRING 0
+#define PIO_5_DRIVEN_SIM_VALUE 0
+#define PIO_5_EDGE_TYPE "NONE"
+#define PIO_5_FREQ 27000000
+#define PIO_5_HAS_IN 0
+#define PIO_5_HAS_OUT 1
+#define PIO_5_HAS_TRI 0
+#define PIO_5_IRQ -1
+#define PIO_5_IRQ_INTERRUPT_CONTROLLER_ID -1
+#define PIO_5_IRQ_TYPE "NONE"
+#define PIO_5_NAME "/dev/pio_5"
+#define PIO_5_RESET_VALUE 0
+#define PIO_5_SPAN 16
+#define PIO_5_TYPE "altera_avalon_pio"
 
 
 /*

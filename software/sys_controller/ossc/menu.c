@@ -54,6 +54,7 @@ static const char *sl_mode_desc[] = { LNG("Off","ｵﾌ"), LNG("Auto","ｼﾞﾄ
 static const char *sl_type_desc[] = { LNG("Horizontal","ｽｲﾍｲ"), LNG("Vertical","ｽｲﾁｮｸ"), LNG("Alternating","ｺｳｺﾞ") };
 static const char *sl_id_desc[] = { LNG("Top","ｳｴ"), LNG("Bottom","ｼﾀ") };
 static const char *audio_dw_sampl_desc[] = { "Off (fs = 96kHz)", "2x  (fs = 48kHz)" };
+static const char *filter_desc[] = { "none", "eagle", "lq", "scale" };
 
 static void sampler_phase_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, LNG("%d deg","%d ﾄﾞ"), (v*1125)/100); }
 static void sync_vth_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, "%d mV", (v*1127)/100); }
@@ -116,6 +117,8 @@ MENU(menu_postproc, P99_PROTECT({ \
     { LNG("Scanline alignm.","ｿｳｻｾﾝﾎﾟｼﾞｼｮﾝ"),    OPT_AVCONFIG_SELECTION, { .sel = { &tc.sl_id,       OPT_WRAP,   SETTING_ITEM(sl_id_desc) } } },
     { LNG("Horizontal mask","ｽｲﾍｲﾏｽｸ"),         OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.h_mask,      OPT_NOWRAP, 0, HV_MASK_MAX, pixels_disp } } },
     { LNG("Vertical mask","ｽｲﾁｮｸﾏｽｸ"),          OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.v_mask,      OPT_NOWRAP, 0, HV_MASK_MAX, pixels_disp } } },
+    { "Filter",                                  OPT_AVCONFIG_SELECTION,  { .sel = { &tc.ft_type,    OPT_WRAP, SETTING_ITEM(filter_desc) } } },
+    { "Filter delta",                            OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.ft_delta,   OPT_WRAP, 0, 0xFF, value_disp } } },
 }))
 
 #ifdef DIY_AUDIO
