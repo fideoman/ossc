@@ -115,14 +115,14 @@ int main(int argc, char **argv)
         return -1;  
     }
     
-    if ((fd_i = open(argv[1], O_RDONLY)) == -1 || fstat(fd_i, &fileinfo) == -1) {
+    if ((fd_i = open(argv[1], O_RDONLY|O_BINARY)) == -1 || fstat(fd_i, &fileinfo) == -1) {
         printf("Couldn't open input file\n");
         return -1;
     }
     
     snprintf(fw_bin_name, MAX_FILENAME-1, "ossc_%s%s%s.bin", argv[2], (argc == 4) ? "-" : "", (argc == 4) ? argv[3] : "");
     
-    if ((fd_o = open(fw_bin_name, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR)) == -1) {
+    if ((fd_o = open(fw_bin_name, O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, S_IRUSR|S_IWUSR)) == -1) {
         printf("Couldn't open output file\n");
         return -1;
     }
