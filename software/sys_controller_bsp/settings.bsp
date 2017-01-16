@@ -2,8 +2,8 @@
 <sch:Settings xmlns:sch="http://www.altera.com/embeddedsw/bsp/schema">
         <BspType>hal</BspType>
         <BspVersion>default</BspVersion>
-        <BspGeneratedTimeStamp>Jan 13, 2017 7:16:04 PM</BspGeneratedTimeStamp>
-        <BspGeneratedUnixTimeStamp>1484363764252</BspGeneratedUnixTimeStamp>
+        <BspGeneratedTimeStamp>Jan 15, 2017 9:45:22 PM</BspGeneratedTimeStamp>
+        <BspGeneratedUnixTimeStamp>1484545522603</BspGeneratedUnixTimeStamp>
         <BspGeneratedLocation>C:\Users\orion\ossc\software\sys_controller_bsp</BspGeneratedLocation>
         <BspSettingsFile>settings.bsp</BspSettingsFile>
         <SopcDesignFile>..\..\sys.sopcinfo</SopcDesignFile>

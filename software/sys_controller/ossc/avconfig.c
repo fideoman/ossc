@@ -32,7 +32,7 @@
 #define DEFAULT_SYNC_VTH        11
 #define DEFAULT_FINE_GAIN       26
 #define DEFAULT_FINE_OFFSET     0x80
-#define DEFAULT_FILTER_DELTA    32
+#define DEFAULT_FILTER_STR      3
 
 extern mode_data_t video_modes[], video_modes_default[];
 extern alt_u8 update_cur_vm;
@@ -49,7 +49,7 @@ const avconfig_t tc_default = {
     .sync_lpf = DEFAULT_SYNC_LPF,
     .pre_coast = DEFAULT_PRE_COAST,
     .post_coast = DEFAULT_POST_COAST,
-    .ft_delta = DEFAULT_FILTER_DELTA,
+    .ft_str = DEFAULT_FILTER_STR,
 #ifdef DIY_AUDIO
     .audio_dw_sampl = DEFAULT_ON,
     .tx_mode = TX_HDMI,

@@ -10,21 +10,34 @@ set_false_path -to {sys:sys_inst|sys_pio_1:pio_1|readdata*}
 ### Scanconverter clock constraints ###
 
 create_clock -period 108MHz -name pclk_hdtv [get_ports PCLK_in]
-create_clock -period 27MHz -name pclk_ldtv_hs_M0 [get_ports PCLK_in] -add
-create_clock -period 20MHz -name pclk_ldtv_hs_M1 [get_ports PCLK_in] -add
-create_clock -period 13.5MHz -name pclk_sdtv [get_ports PCLK_in] -add
-create_clock -period 6.7MHz -name pclk_ldtv_M2 [get_ports PCLK_in] -add
-create_clock -period 5.4MHz -name pclk_ldtv_M3 [get_ports PCLK_in] -add
+#create_clock -period 27MHz -name pclk_ldtv_hs_M0 [get_ports PCLK_in] -add
+#create_clock -period 20MHz -name pclk_ldtv_hs_M1 [get_ports PCLK_in] -add
+#create_clock -period 13.5MHz -name pclk_sdtv [get_ports PCLK_in] -add
+#create_clock -period 6.7MHz -name pclk_ldtv_M2 [get_ports PCLK_in] -add
+#create_clock -period 5.4MHz -name pclk_ldtv_M3 [get_ports PCLK_in] -add
+create_clock -period 54MHz -name pclk_ldtv_hs_M0 [get_ports PCLK_in] -add
+create_clock -period 40MHz -name pclk_ldtv_hs_M1 [get_ports PCLK_in] -add
+create_clock -period 27.0MHz -name pclk_sdtv [get_ports PCLK_in] -add
+create_clock -period 13.4MHz -name pclk_ldtv_M2 [get_ports PCLK_in] -add
+create_clock -period 10.8MHz -name pclk_ldtv_M3 [get_ports PCLK_in] -add
 
 #derive_pll_clocks
-create_generated_clock -master_clock pclk_sdtv -source {scanconverter_inst|pll_linedouble|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 2 -duty_cycle 50.00 -name pclk_2x {scanconverter_inst|pll_linedouble|altpll_component|auto_generated|pll1|clk[0]}
-create_generated_clock -master_clock pclk_ldtv_hs_M0 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -duty_cycle 50.00 -name pclk_3x_M0 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[0]}
-create_generated_clock -master_clock pclk_ldtv_hs_M1 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -duty_cycle 50.00 -name pclk_3x_M1 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[0]} -add
-create_generated_clock -master_clock pclk_ldtv_hs_M1 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 4 -duty_cycle 50.00 -name pclk_4x_M1 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[1]}
-create_generated_clock -master_clock pclk_ldtv_M2 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -duty_cycle 50.00 -name pclk_3x_h1x_M2 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[0]}
-create_generated_clock -master_clock pclk_ldtv_M2 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 12 -duty_cycle 50.00 -name pclk_3x_h4x_M2 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[1]}
-create_generated_clock -master_clock pclk_ldtv_M3 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -duty_cycle 50.00 -name pclk_3x_h1x_M3 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[0]} -add
-create_generated_clock -master_clock pclk_ldtv_M3 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 15 -duty_cycle 50.00 -name pclk_3x_h5x_M3 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[2]}
+#create_generated_clock -master_clock pclk_sdtv -source {scanconverter_inst|pll_linedouble|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 2 -duty_cycle 50.00 -name pclk_2x {scanconverter_inst|pll_linedouble|altpll_component|auto_generated|pll1|clk[0]}
+#create_generated_clock -master_clock pclk_ldtv_hs_M0 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -duty_cycle 50.00 -name pclk_3x_M0 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[0]}
+#create_generated_clock -master_clock pclk_ldtv_hs_M1 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -duty_cycle 50.00 -name pclk_3x_M1 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[0]} -add
+#create_generated_clock -master_clock pclk_ldtv_hs_M1 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 4 -duty_cycle 50.00 -name pclk_4x_M1 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[1]}
+#create_generated_clock -master_clock pclk_ldtv_M2 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -duty_cycle 50.00 -name pclk_3x_h1x_M2 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[0]}
+#create_generated_clock -master_clock pclk_ldtv_M2 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 12 -duty_cycle 50.00 -name pclk_3x_h4x_M2 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[1]}
+#create_generated_clock -master_clock pclk_ldtv_M3 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -duty_cycle 50.00 -name pclk_3x_h1x_M3 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[0]} -add
+#create_generated_clock -master_clock pclk_ldtv_M3 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 15 -duty_cycle 50.00 -name pclk_3x_h5x_M3 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[2]}
+create_generated_clock -master_clock pclk_sdtv -source {scanconverter_inst|pll_linedouble|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 2 -divide_by 2 -duty_cycle 50.00 -name pclk_2x {scanconverter_inst|pll_linedouble|altpll_component|auto_generated|pll1|clk[0]}
+create_generated_clock -master_clock pclk_ldtv_hs_M0 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -divide_by 2 -duty_cycle 50.00 -name pclk_3x_M0 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[0]}
+create_generated_clock -master_clock pclk_ldtv_hs_M1 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -divide_by 2 -duty_cycle 50.00 -name pclk_3x_M1 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[0]} -add
+create_generated_clock -master_clock pclk_ldtv_hs_M1 -source {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 4 -divide_by 2 -duty_cycle 50.00 -name pclk_4x_M1 {scanconverter_inst|pll_linetriple|altpll_component|auto_generated|pll1|clk[1]}
+create_generated_clock -master_clock pclk_ldtv_M2 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -divide_by 2 -duty_cycle 50.00 -name pclk_3x_h1x_M2 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[0]}
+create_generated_clock -master_clock pclk_ldtv_M2 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 12 -divide_by 2 -duty_cycle 50.00 -name pclk_3x_h4x_M2 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[1]}
+create_generated_clock -master_clock pclk_ldtv_M3 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 3 -divide_by 2 -duty_cycle 50.00 -name pclk_3x_h1x_M3 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[0]} -add
+create_generated_clock -master_clock pclk_ldtv_M3 -source {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|inclk[0]} -multiply_by 15 -divide_by 2 -duty_cycle 50.00 -name pclk_3x_h5x_M3 {scanconverter_inst|pll_linetriple_lowfreq|altpll_component|auto_generated|pll1|clk[2]}
 
 derive_clock_uncertainty
 

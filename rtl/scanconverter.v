@@ -66,6 +66,9 @@
 `define FT_H                    7
 `define FT_I                    8
 
+//`define SAMPLE_SHIFT            ((H_LINEMULT == `LINEMULT_TRIPLE) && H_L3MODE[1])
+`define SAMPLE_SHIFT            (H_LINEMULT != `LINEMULT_DISABLE)
+
 module scanconverter (
     input reset_n,
     input [7:0] R_in,
@@ -157,8 +160,8 @@ reg [5:0] V_MASK;
 reg [1:0] H_LINEMULT;
 reg [1:0] H_L3MODE;
 reg [5:0] H_MASK;
-reg [7:0] F_DELTA;
-reg [1:0] F_FILTER;
+reg [2:0] F_FILTERSTR;
+reg [0:0] F_FILTER;
 
 //8 bits per component -> 16.7M colors
 reg [7:0] R_1x, G_1x, B_1x, R_pp1, G_pp1, B_pp1, R_pp2, G_pp2, B_pp2;
@@ -193,12 +196,12 @@ function [23:0] apply_filter;
     input [1:0] row;
     input [1:0] col;
     
-    reg [23:0] direct_o[3][3], scale_o[3][3], eagle_o[3][3], lq_o[3][3], filter_o[3][3];
+    reg [23:0] scale_o[3][3]; // direct_o[3][3], scale_o[3][3], eagle_o[3][3], lq_o[3][3], filter_o[3][3];
     reg cond;
 
     begin
     
-        for (int i = 0; i < 3; i = i + 1)
+/*         for (int i = 0; i < 3; i = i + 1)
             for (int j = 0; j < 3; j = j + 1)
                 direct_o[i][j] = data[`FT_E];
 
@@ -259,8 +262,33 @@ function [23:0] apply_filter;
             2: filter_o = lq_o;
             3: filter_o = scale_o;
         endcase
-          
+
         apply_filter = filter_o[row][col];
+ */
+        cond = cmp(data[`FT_B], data[`FT_H], 0) && cmp(data[`FT_D], data[`FT_F], 0);
+        
+        // scale
+        if (cond) begin
+            scale_o[0][0] = (cmp(data[`FT_D], data[`FT_B], 1)) ? lerp(data[`FT_E], data[`FT_B], F_FILTERSTR) : data[`FT_E];
+            scale_o[0][1] = (((cmp(data[`FT_D], data[`FT_B], 1) && cmp(data[`FT_E], data[`FT_C], 0)) || (cmp(data[`FT_B], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_A], 0)))) ? lerp(data[`FT_E], data[`FT_B], F_FILTERSTR) : data[`FT_E];
+            scale_o[0][2] = (cmp(data[`FT_B], data[`FT_F], 1)) ? lerp(data[`FT_E], data[`FT_B], F_FILTERSTR) : data[`FT_E];
+            scale_o[1][0] = (((cmp(data[`FT_D], data[`FT_B], 1) && cmp(data[`FT_E], data[`FT_G], 0)) || (cmp(data[`FT_D], data[`FT_H], 1) && cmp(data[`FT_E], data[`FT_A], 0)))) ? lerp(data[`FT_E], data[`FT_D], F_FILTERSTR) : data[`FT_E];
+            scale_o[1][1] = data[`FT_E];
+            scale_o[1][2] = (((cmp(data[`FT_B], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_I], 0)) || (cmp(data[`FT_H], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_C], 0)))) ? lerp(data[`FT_E], data[`FT_F], F_FILTERSTR) : data[`FT_E];
+            scale_o[2][0] = (cmp(data[`FT_D], data[`FT_H], 1)) ? lerp(data[`FT_E], data[`FT_H], F_FILTERSTR) : data[`FT_E];
+            scale_o[2][1] = (((cmp(data[`FT_D], data[`FT_H], 1) && cmp(data[`FT_E], data[`FT_I], 0)) || (cmp(data[`FT_H], data[`FT_F], 1) && cmp(data[`FT_E], data[`FT_G], 0)))) ? lerp(data[`FT_E], data[`FT_H], F_FILTERSTR) : data[`FT_E];
+            scale_o[2][2] = (cmp(data[`FT_H], data[`FT_F], 1)) ? lerp(data[`FT_E], data[`FT_H], F_FILTERSTR) : data[`FT_E];
+        end
+        else
+            for (int i = 0; i < 3; i = i + 1)
+                for (int j = 0; j < 3; j = j + 1)
+                    scale_o[i][j] = data[`FT_E];
+        
+        case (mode)
+            1: apply_filter = scale_o[row][col];
+            default: apply_filter = data[`FT_E];
+        endcase
+
     end
     endfunction
    
@@ -276,7 +304,7 @@ function cmp;
         { a_r, a_b, a_g } = a;
         { b_r, b_b, b_g } = b;
 
-        ret = (((a_r >= b_r) ? a_r - b_r : b_r - a_r) < F_DELTA) && (((a_b >= b_b) ? a_b - b_b : b_b - a_b) < F_DELTA) && (((a_g >= b_g) ? a_g - b_g : b_g - a_g) < F_DELTA);
+        ret = (((a_r >= b_r) ? a_r - b_r : b_r - a_r) < 32) && (((a_b >= b_b) ? a_b - b_b : b_b - a_b) < 32) && (((a_g >= b_g) ? a_g - b_g : b_g - a_g) < 32);
     
         if (eq == 1)
             cmp = ret;
@@ -294,6 +322,34 @@ function [23:0] avg;
     end
     endfunction
     
+function [23:0] lerp;
+    input [23:0] a;
+    input [23:0] b;
+    input [2:0] l;
+    
+    reg [7:0] a_r, a_g, a_b;
+    reg[7:0] b_r, b_g, b_b;
+    
+    begin
+        { a_r, a_b, a_g } = a;
+        { b_r, b_b, b_g } = b;
+
+        case (l)
+            0: lerp = ((1*(a_r>>1) + 1*(a_r>>2) + 1*(a_r>>3) + 0*(b_r>>1) + 0*(b_r>>2) + 1*(b_r>>3)) << 16) | ((1*(a_b>>1) + 1*(a_b>>2) + 1*(a_b>>3) + 0*(b_b>>1) + 0*(b_b>>2) + 1*(b_b>>3)) << 8) | ((1*(a_g>>1) + 1*(a_g>>2) + 1*(a_g>>3) + 0*(b_g>>1) + 0*(b_g>>2) + 1*(b_g>>3)) << 0);
+            1: lerp = ((1*(a_r>>1) + 1*(a_r>>2) + 0*(a_r>>3) + 0*(b_r>>1) + 1*(b_r>>2) + 0*(b_r>>3)) << 16) | ((1*(a_b>>1) + 1*(a_b>>2) + 0*(a_b>>3) + 0*(b_b>>1) + 1*(b_b>>2) + 0*(b_b>>3)) << 8) | ((1*(a_g>>1) + 1*(a_g>>2) + 0*(a_g>>3) + 0*(b_g>>1) + 1*(b_g>>2) + 0*(b_g>>3)) << 0);
+            2: lerp = ((1*(a_r>>1) + 0*(a_r>>2) + 1*(a_r>>3) + 0*(b_r>>1) + 1*(b_r>>2) + 1*(b_r>>3)) << 16) | ((1*(a_b>>1) + 0*(a_b>>2) + 1*(a_b>>3) + 0*(b_b>>1) + 1*(b_b>>2) + 1*(b_b>>3)) << 8) | ((1*(a_g>>1) + 0*(a_g>>2) + 1*(a_g>>3) + 0*(b_g>>1) + 1*(b_g>>2) + 1*(b_g>>3)) << 0);
+            3: lerp = ((1*(a_r>>1) + 0*(a_r>>2) + 0*(a_r>>3) + 1*(b_r>>1) + 0*(b_r>>2) + 0*(b_r>>3)) << 16) | ((1*(a_b>>1) + 0*(a_b>>2) + 0*(a_b>>3) + 1*(b_b>>1) + 0*(b_b>>2) + 0*(b_b>>3)) << 8) | ((1*(a_g>>1) + 0*(a_g>>2) + 0*(a_g>>3) + 1*(b_g>>1) + 0*(b_g>>2) + 0*(b_g>>3)) << 0);
+            4: lerp = ((0*(a_r>>1) + 1*(a_r>>2) + 1*(a_r>>3) + 1*(b_r>>1) + 0*(b_r>>2) + 1*(b_r>>3)) << 16) | ((0*(a_b>>1) + 1*(a_b>>2) + 1*(a_b>>3) + 1*(b_b>>1) + 0*(b_b>>2) + 1*(b_b>>3)) << 8) | ((0*(a_g>>1) + 1*(a_g>>2) + 1*(a_g>>3) + 1*(b_g>>1) + 0*(b_g>>2) + 1*(b_g>>3)) << 0);
+            5: lerp = ((0*(a_r>>1) + 1*(a_r>>2) + 0*(a_r>>3) + 1*(b_r>>1) + 1*(b_r>>2) + 0*(b_r>>3)) << 16) | ((0*(a_b>>1) + 1*(a_b>>2) + 0*(a_b>>3) + 1*(b_b>>1) + 1*(b_b>>2) + 0*(b_b>>3)) << 8) | ((0*(a_g>>1) + 1*(a_g>>2) + 0*(a_g>>3) + 1*(b_g>>1) + 1*(b_g>>2) + 0*(b_g>>3)) << 0);
+            6: lerp = ((0*(a_r>>1) + 0*(a_r>>2) + 1*(a_r>>3) + 1*(b_r>>1) + 1*(b_r>>2) + 1*(b_r>>3)) << 16) | ((0*(a_b>>1) + 0*(a_b>>2) + 1*(a_b>>3) + 1*(b_b>>1) + 1*(b_b>>2) + 1*(b_b>>3)) << 8) | ((0*(a_g>>1) + 0*(a_g>>2) + 1*(a_g>>3) + 1*(b_g>>1) + 1*(b_g>>2) + 1*(b_g>>3)) << 0);
+            7: lerp = b;
+            default: begin
+                lerp = a;
+            end
+        endcase
+    end
+    endfunction
+
 //Scanline generation
 function [7:0] apply_scanlines;
     input [1:0] mode;
@@ -662,7 +718,7 @@ begin
             //lines_out_pp0 <= lines_act;
 
             // scaling filter
-            { R_pp1, G_pp1, B_pp1 } <= apply_filter(1, matrix_pp0, (linebuf_4xmode ? F_FILTER : 0), line_out_read, col_out_read);
+            { R_pp1, G_pp1, B_pp1 } <= apply_filter(1, matrix_pp0, (linebuf_4xmode ? F_FILTER[0] : 0), line_out_read, col_out_read);
             HSYNC_pp1 <= HSYNC_pp0;
             VSYNC_pp1 <= VSYNC_pp0;
             DATA_enable_pp1 <= DATA_enable_pp0;
@@ -759,7 +815,7 @@ begin
             V_SCANLINESTR <= 0;
             V_MASK <= 0;
             F_FILTER <= 0;
-            F_DELTA <= 0;
+            F_FILTERSTR <= 0;
             prev_hs <= 0;
             prev_vs <= 0;
             HSYNC_start <= 0;
@@ -792,7 +848,7 @@ begin
                 end
             else
                 begin
-                    if (!hcnt_1x_skip || (H_LINEMULT != `LINEMULT_TRIPLE) || !H_L3MODE[1])
+                    if (!hcnt_1x_skip || !`SAMPLE_SHIFT)
                         hcnt_1x <= hcnt_1x + 1'b1;
                     hcnt_1x_skip <= !hcnt_1x_skip;
                 end
@@ -827,8 +883,8 @@ begin
                     V_SCANLINEID <= v_info[29:28];
                     V_SCANLINESTR <= ((v_info[27:24]+8'h01)<<4)-1'b1;
                     V_MASK <= v_info[23:18];
-                    F_DELTA <= f_info[7:0];
-                    F_FILTER <= f_info[9:8];
+                    F_FILTERSTR <= f_info[2:0];
+                    F_FILTER <= f_info[3:3];
                 end
                 
             prev_hs <= HSYNC_in;
@@ -856,8 +912,8 @@ begin
             h_enable_1x <= ((hcnt_1x >= H_BACKPORCH) & (hcnt_1x < H_BACKPORCH + H_ACTIVE));
             v_enable_1x <= ((vcnt_1x >= V_BACKPORCH) & (vcnt_1x < V_BACKPORCH + V_ACTIVE)); //- FID_in ???
 
-            HSYNC_TRAILING_EDGE_d1 <= ((H_LINEMULT != `LINEMULT_TRIPLE) || !H_L3MODE[1]) ? 0 : `HSYNC_TRAILING_EDGE;
-            VSYNC_TRAILING_EDGE_d1 <= ((H_LINEMULT != `LINEMULT_TRIPLE) || !H_L3MODE[1]) ? 0 : `VSYNC_TRAILING_EDGE;
+            HSYNC_TRAILING_EDGE_d1 <= !`SAMPLE_SHIFT ? 0 : `HSYNC_TRAILING_EDGE;
+            VSYNC_TRAILING_EDGE_d1 <= !`SAMPLE_SHIFT ? 0 : `VSYNC_TRAILING_EDGE;
 
             linebuf_4xmode <= (F_FILTER != 0) && (hmax[0] < 1024);
         end
@@ -880,7 +936,7 @@ begin
         end
     else
         begin
-            if ((pclk_2x_05x == 1'b0) & (`HSYNC_TRAILING_EDGE | HSYNC_TRAILING_EDGE_d1))   //sync with posedge of pclk_1x
+ /*            if ((pclk_2x_05x == 1'b0) & (`HSYNC_TRAILING_EDGE | HSYNC_TRAILING_EDGE_d1))   //sync with posedge of pclk_1x
                 begin
                     hcnt_2x <= 0;
                     line_out_idx_2x <= 0;
@@ -924,6 +980,54 @@ begin
                     else if (vcnt_1x > V_ACTIVE)
                         VSYNC_2x <= VSYNC_in;
                 end
+
+            HSYNC_2x <= ~(hcnt_2x >= HSYNC_start);
+            //TODO: VSYNC_2x
+            h_enable_2x <= ((hcnt_2x >= H_BACKPORCH) & (hcnt_2x < H_BACKPORCH + H_ACTIVE));
+            v_enable_2x <= ((vcnt_2x >= (V_BACKPORCH<<1)) & (vcnt_2x < ((V_BACKPORCH + V_ACTIVE)<<1))); */
+            
+            
+            if (`HSYNC_TRAILING_EDGE)   //sync with posedge of pclk_1x
+                begin
+                    hcnt_2x <= 0;
+                    line_out_idx_2x <= 0;
+                    col_out_idx_2x <= 0;
+                end
+            else if (hcnt_2x == hmax[~line_idx]) //line_idx_prev?
+                begin
+                    hcnt_2x <= 0;
+                    line_out_idx_2x <= line_out_idx_2x + 1'b1;
+                    col_out_idx_2x <= 0;
+                end
+            else
+                begin
+                    hcnt_2x <= hcnt_2x + 1'b1;
+                    col_out_idx_2x <= (col_out_idx_2x + 1'b1) & 1'b1;
+                end
+
+            if (hcnt_2x == 0)
+                vcnt_2x <= vcnt_2x + 1'b1;
+            
+            if (fpga_vsyncgen[`VSYNCGEN_GENMID_BIT] == 1'b1)
+                begin
+                    if (`VSYNC_TRAILING_EDGE)
+                        vcnt_2x <= 0;
+                    else if (vcnt_2x == lines_1x)
+                        begin
+                            vcnt_2x <= 0;
+                            lines_2x <= vcnt_2x;
+                        end
+                end
+            else if (`VSYNC_TRAILING_EDGE && !(`FALSE_FIELD)) //sync with posedge of pclk_1x
+                begin
+                    vcnt_2x <= 0;
+                    lines_2x <= vcnt_2x;
+                end
+                
+            if (fpga_vsyncgen[`VSYNCGEN_GENMID_BIT] == 1'b1)
+                VSYNC_2x <= (vcnt_2x >= lines_1x - `VSYNCGEN_LEN) ? 1'b0 : 1'b1;
+            else if (vcnt_1x > V_ACTIVE)
+                VSYNC_2x <= VSYNC_in;
 
             HSYNC_2x <= ~(hcnt_2x >= HSYNC_start);
             //TODO: VSYNC_2x

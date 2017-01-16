@@ -63,7 +63,7 @@ typedef enum {
     MODE_PLLDIVBY2  = (1<<6),
     MODE_DTV480P    = (1<<7),
     MODE_VGA480P    = (1<<8),
-    MODE_2XPLLDIVBY1= (1<<9)
+    MODE_PLLDIVBY1  = (1<<9)
 } mode_flags;
 
 typedef struct {
@@ -82,33 +82,33 @@ typedef struct {
 } mode_data_t;
 
 #define VIDEO_MODES_DEF { \
-    { "240p_L3M0",  1280,  240, 6000, 1560,   262, 170, 16,  72,  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L3_MODE0|MODE_PLLDIVBY2) },                                                 \
-    { "240p_L3M1",   960,  240, 6000, 1170,   262, 128, 16,  54,  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L3_MODE1|MODE_PLLDIVBY2) },                                                 \
-    /*{ "240p_L3M2",   384,  240, 6000,  512,   262,  66, 16,  31,  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE2|MODE_2XPLLDIVBY1) },                 //CPS2*/                      \
-    { "240p_L3M2",   320,  240, 6000,  426,   262,  64/*49*/, 16,  31,  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE2|MODE_2XPLLDIVBY1) },                                                 \
-    { "240p_L3M3",   256,  240, 6000,  341,   262,  51/*39*/, 16,  25,  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE3|MODE_2XPLLDIVBY1) },                                                 \
-    { "240p",        720,  240, 6000,  858,   262,  65, 16,  60,  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L2ENABLE|MODE_PLLDIVBY2) },                                                 \
-    { "288p_L3M0",  1280,  288, 5000, 1560,   312, 170, 16,  72,  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L3_MODE0|MODE_PLLDIVBY2) },                                                 \
-    { "288p_L3M1",   960,  288, 5000, 1170,   312, 128, 16,  54,  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L3_MODE1|MODE_PLLDIVBY2) },                                                 \
-    { "288p_L3M2",   320,  240, 5000,  426,   312,  49, 41,  31,  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE2|MODE_2XPLLDIVBY1) },                                                 \
-    { "288p_L3M3",   256,  240, 5000,  341,   312,  39, 41,  25,  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE3|MODE_2XPLLDIVBY1) },                                                 \
-    { "288p",        720,  288, 5000,  864,   312,  65, 16,  60,  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L2ENABLE|MODE_PLLDIVBY2) },                                                 \
-    { "384p",        496,  384, 5766,  640,   423,  50, 29,  62,  3, VIDEO_EDTV,              (MODE_L2ENABLE|MODE_PLLDIVBY2) },                 /* Sega Model 2 */              \
-    { "640x384",     640,  384, 5500,  800,   492,  48, 63,  96,  2, VIDEO_PC,                (MODE_L2ENABLE) },                                /* X68k @ 24kHz */              \
-    { "480i",        720,  240, 5994,  858,   525,  65, 16,  60,  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L2ENABLE|MODE_PLLDIVBY2|MODE_INTERLACED) },                                 \
-    { "480p",        720,  480, 5994,  858,   525,  60, 30,  62,  6, (VIDEO_EDTV|VIDEO_PC),   (MODE_DTV480P) },                                                                 \
-    { "640x480",     640,  480, 6000,  800,   525,  48, 33,  96,  2, (VIDEO_PC|VIDEO_EDTV),   (MODE_VGA480P) },                                                                 \
-    { "640x512",     640,  512, 6000,  800,   568,  48, 28,  96,  2, VIDEO_PC,                0 },                                              /* X68k @ 31kHz */              \
-    { "576i",        720,  288, 5000,  864,   625,  65, 16,  60,  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L2ENABLE|MODE_PLLDIVBY2|MODE_INTERLACED) },                                 \
-    { "576p",        720,  576, 5000,  864,   625,  65, 32,  60,  6, VIDEO_EDTV,              0 },                                                                              \
-    { "800x600",     800,  600, 6000, 1056,   628,  88, 23, 128,  4, VIDEO_PC,                0 },                                                                              \
-    { "720p",       1280,  720, 5994, 1650,   750, 255, 20,  40,  5, VIDEO_HDTV,              0 },                                                                              \
-    { "1280x720",   1280,  720, 6000, 1650,   750, 220, 20,  40,  5, VIDEO_PC,                0 },                                                                              \
-    { "1024x768",   1024,  768, 6000, 1344,   806, 160, 29, 136,  6, VIDEO_PC,                0 },                                                                              \
-    { "1280x1024",  1280, 1024, 6000, 1688,  1066, 248, 38, 112,  3, VIDEO_PC,                0 },                                                                              \
-    { "1080i",      1920, 1080, 5994, 2200,  1125, 148, 16,  44,  5, VIDEO_HDTV,              (MODE_INTERLACED) },                              /* Too high freq for L2 PLL */  \
-    { "1080p",      1920, 1080, 5994, 2200,  1125, 188, 36,  44,  5, VIDEO_HDTV,              0 },                                                                              \
-    { "1920x1080",  1920, 1080, 6000, 2200,  1125, 148, 36,  44,  5, VIDEO_PC,                0 },                                                                              \
+    { "240p_L3M0",  1280,  240, 6000, 1560,   262, (170+12), 16,  (72+14),  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L3_MODE0|MODE_PLLDIVBY1) },                                                 \
+    { "240p_L3M1",   960,  240, 6000, 1170,   262, (128+12), 16,  (54+14),  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L3_MODE1|MODE_PLLDIVBY1) },                                                 \
+    /*{ "240p_L3M2",   384,  240, 6000,  512,   262,  66, 16,  31,  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE2|MODE_PLLDIVBY1) },                 //CPS2*/                      \
+    { "240p_L3M2",   320,  240, 6000,  426,   262, ( 49+ 8), 16,  (31+12),  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE2|MODE_PLLDIVBY1) },                                                 \
+    { "240p_L3M3",   256,  240, 6000,  341,   262, ( 39+ 6), 16,  (25+12),  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE3|MODE_PLLDIVBY1) },                                                 \
+    { "240p",        720,  240, 6000,  858,   262, ( 65+12), 16,  (60+12),  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L2ENABLE|MODE_PLLDIVBY1) },                                                 \
+    { "288p_L3M0",  1280,  288, 5000, 1560,   312, (170+12), 16,  (72+14),  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L3_MODE0|MODE_PLLDIVBY1) },                                                 \
+    { "288p_L3M1",   960,  288, 5000, 1170,   312, (128+12), 16,  (54+14),  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L3_MODE1|MODE_PLLDIVBY1) },                                                 \
+    { "288p_L3M2",   320,  240, 5000,  426,   312, ( 49+ 8), 41,  (31+12),  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE2|MODE_PLLDIVBY1) },                                                 \
+    { "288p_L3M3",   256,  240, 5000,  341,   312, ( 39+ 6), 41,  (25+12),  3, (VIDEO_LDTV|VIDEO_PC),   (MODE_L3_MODE3|MODE_PLLDIVBY1) },                                                 \
+    { "288p",        720,  288, 5000,  864,   312, ( 65+12), 16,  (60+12),  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L2ENABLE|MODE_PLLDIVBY1) },                                                 \
+    { "384p",        496,  384, 5766,  640,   423, ( 50+12), 29,  (62+12),  3, VIDEO_EDTV,              (MODE_L2ENABLE|MODE_PLLDIVBY1) },                 /* Sega Model 2 */              \
+    { "640x384",     640,  384, 5500,  800,   492, ( 48   ), 63,  (96   ),  2, VIDEO_PC,                (MODE_L2ENABLE) },                                /* X68k @ 24kHz */              \
+    { "480i",        720,  240, 5994,  858,   525, ( 65+12), 16,  (60+12),  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L2ENABLE|MODE_PLLDIVBY1|MODE_INTERLACED) },                                 \
+    { "480p",        720,  480, 5994,  858,   525, ( 60   ), 30,  (62   ),  6, (VIDEO_EDTV|VIDEO_PC),   (MODE_DTV480P) },                                                                 \
+    { "640x480",     640,  480, 6000,  800,   525, ( 48   ), 33,  (96   ),  2, (VIDEO_PC|VIDEO_EDTV),   (MODE_VGA480P) },                                                                 \
+    { "640x512",     640,  512, 6000,  800,   568, ( 48   ), 28,  (96   ),  2, VIDEO_PC,                0 },                                              /* X68k @ 31kHz */              \
+    { "576i",        720,  288, 5000,  864,   625, ( 65+12), 16,  (60+12),  3, (VIDEO_SDTV|VIDEO_PC),   (MODE_L2ENABLE|MODE_PLLDIVBY1|MODE_INTERLACED) },                                 \
+    { "576p",        720,  576, 5000,  864,   625, ( 65   ), 32,  (60   ),  6, VIDEO_EDTV,              0 },                                                                              \
+    { "800x600",     800,  600, 6000, 1056,   628, ( 88   ), 23,  (128  ),  4, VIDEO_PC,                0 },                                                                              \
+    { "720p",       1280,  720, 5994, 1650,   750, (255   ), 20,  (40   ),  5, VIDEO_HDTV,              0 },                                                                              \
+    { "1280x720",   1280,  720, 6000, 1650,   750, (220   ), 20,  (40   ),  5, VIDEO_PC,                0 },                                                                              \
+    { "1024x768",   1024,  768, 6000, 1344,   806, (160   ), 29,  (136  ),  6, VIDEO_PC,                0 },                                                                              \
+    { "1280x1024",  1280, 1024, 6000, 1688,  1066, (248   ), 38,  (112  ),  3, VIDEO_PC,                0 },                                                                              \
+    { "1080i",      1920, 1080, 5994, 2200,  1125, (148   ), 16,  (44   ),  5, VIDEO_HDTV,              (MODE_INTERLACED) },                              /* Too high freq for L2 PLL */  \
+    { "1080p",      1920, 1080, 5994, 2200,  1125, (188   ), 36,  (44   ),  5, VIDEO_HDTV,              0 },                                                                              \
+    { "1920x1080",  1920, 1080, 6000, 2200,  1125, (148   ), 36,  (44   ),  5, VIDEO_PC,                0 },                                                                              \
 }
 
 #define VIDEO_MODES_SIZE (sizeof((mode_data_t[])VIDEO_MODES_DEF))
