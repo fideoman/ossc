@@ -1,24 +1,25 @@
 # -------------------------------------------------------------------------- #
 #
-# Copyright (C) 1991-2013 Altera Corporation
-# Your use of Altera Corporation's design tools, logic functions 
+# Copyright (C) 2016  Intel Corporation. All rights reserved.
+# Your use of Intel Corporation's design tools, logic functions 
 # and other software and tools, and its AMPP partner logic 
 # functions, and any output files from any of the foregoing 
 # (including device programming or simulation files), and any 
 # associated documentation or information are expressly subject 
-# to the terms and conditions of the Altera Program License 
-# Subscription Agreement, Altera MegaCore Function License 
-# Agreement, or other applicable license agreement, including, 
-# without limitation, that your use is for the sole purpose of 
-# programming logic devices manufactured by Altera and sold by 
-# Altera or its authorized distributors.  Please refer to the 
-# applicable agreement for further details.
+# to the terms and conditions of the Intel Program License 
+# Subscription Agreement, the Intel Quartus Prime License Agreement,
+# the Intel MegaCore Function License Agreement, or other 
+# applicable license agreement, including, without limitation, 
+# that your use is for the sole purpose of programming logic 
+# devices manufactured by Intel and sold by Intel or its 
+# authorized distributors.  Please refer to the applicable 
+# agreement for further details.
 #
 # -------------------------------------------------------------------------- #
 #
-# Quartus II 64-Bit
-# Version 13.1.0 Build 162 10/23/2013 SJ Web Edition
-# Date created = 17:27:03  May 17, 2014
+# Quartus Prime
+# Version 16.1.0 Build 196 10/24/2016 SJ Lite Edition
+# Date created = 14:06:13  February 12, 2017
 #
 # -------------------------------------------------------------------------- #
 #
@@ -30,39 +31,39 @@
 #		assignment_defaults.qdf
 #
 # 2) Altera recommends that you do not modify this file. This
-#    file is updated automatically by the Quartus II software
+#    file is updated automatically by the Quartus Prime software
 #    and any changes you make may be lost or overwritten.
 #
 # -------------------------------------------------------------------------- #
 
 
-set_global_assignment -name FAMILY "Cyclone IV E"
-set_global_assignment -name DEVICE EP4CE15E22C8
-set_global_assignment -name TOP_LEVEL_ENTITY ossc
+
+# Project-Wide Assignments
+# ========================
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 13.1
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "17:27:03  MAY 17, 2014"
 set_global_assignment -name LAST_QUARTUS_VERSION "16.1.0 Lite Edition"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
-set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
-set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
-set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
-set_global_assignment -name EDA_SIMULATION_TOOL "<None>"
-set_global_assignment -name EDA_OUTPUT_DATA_FORMAT NONE -section_id eda_simulation
-set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
-set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
-set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
-set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "NO HEAT SINK WITH STILL AIR"
-set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
-set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
+set_global_assignment -name SMART_RECOMPILE ON
+set_global_assignment -name VERILOG_FILE rtl/videogen.v
+set_global_assignment -name QIP_FILE software/sys_controller/mem_init/meminit.qip
+set_global_assignment -name VERILOG_FILE rtl/ir_rcv.v
+set_global_assignment -name SDC_FILE ossc.sdc
+set_global_assignment -name QSYS_FILE sys.qsys
+set_global_assignment -name VERILOG_FILE rtl/ossc.v
+set_global_assignment -name VERILOG_FILE rtl/scanconverter.v
+set_global_assignment -name VERILOG_FILE rtl/filter.v
+set_global_assignment -name QIP_FILE rtl/linebuf.qip
+set_global_assignment -name QIP_FILE rtl/pll_2x.qip
+set_global_assignment -name QIP_FILE rtl/pll_3x.qip
+set_global_assignment -name CDF_FILE output_files/Chain1.cdf
+set_global_assignment -name QIP_FILE rtl/linebuf_1k.qip
 
-
+# Pin & Location Assignments
+# ==========================
 set_location_assignment PIN_25 -to clk27
 set_location_assignment PIN_99 -to reset_n
 set_location_assignment PIN_23 -to ir_rx
-
-#============================================================
-# TVP7002
-#============================================================
 set_location_assignment PIN_52 -to R_in[0]
 set_location_assignment PIN_53 -to R_in[1]
 set_location_assignment PIN_54 -to R_in[2]
@@ -91,10 +92,6 @@ set_location_assignment PIN_67 -to G_in[3]
 set_location_assignment PIN_66 -to G_in[2]
 set_location_assignment PIN_65 -to G_in[1]
 set_location_assignment PIN_64 -to G_in[0]
-
-#============================================================
-# HDMITX
-#============================================================
 set_location_assignment PIN_113 -to HDMI_TX_PCLK
 set_location_assignment PIN_111 -to HDMI_TX_BD[3]
 set_location_assignment PIN_112 -to HDMI_TX_BD[4]
@@ -125,43 +122,105 @@ set_location_assignment PIN_10 -to HDMI_TX_RD[6]
 set_location_assignment PIN_11 -to HDMI_TX_RD[7]
 set_location_assignment PIN_100 -to HDMI_TX_INT_N
 set_location_assignment PIN_127 -to HDMI_TX_MODE
-
-#============================================================
-# SD card
-#============================================================
 set_location_assignment PIN_32 -to SD_CLK
 set_location_assignment PIN_31 -to SD_CMD
 set_location_assignment PIN_33 -to SD_DAT[0]
 set_location_assignment PIN_39 -to SD_DAT[1]
 set_location_assignment PIN_28 -to SD_DAT[2]
 set_location_assignment PIN_30 -to SD_DAT[3]
-
-#============================================================
-# Leds
-#============================================================
 set_location_assignment PIN_44 -to LED_G
 set_location_assignment PIN_46 -to LED_R
-
-#============================================================
-# I2C
-#============================================================
 set_location_assignment PIN_49 -to sda
 set_location_assignment PIN_50 -to scl
-
-#============================================================
-# Char LCD
-#============================================================
 set_location_assignment PIN_42 -to LCD_RS
 set_location_assignment PIN_43 -to LCD_CS_N
 set_location_assignment PIN_51 -to LCD_BL
-
-#============================================================
-# Buttons
-#============================================================
 set_location_assignment PIN_129 -to btn[1]
 set_location_assignment PIN_128 -to btn[0]
 
+# Classic Timing Assignments
+# ==========================
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS ON
 
+# Compiler Assignments
+# ====================
+set_global_assignment -name OPTIMIZATION_MODE "AGGRESSIVE PERFORMANCE"
+set_global_assignment -name ALLOW_REGISTER_RETIMING OFF
+
+# Analysis & Synthesis Assignments
+# ================================
+set_global_assignment -name FAMILY "Cyclone IV E"
+set_global_assignment -name TOP_LEVEL_ENTITY ossc
+set_global_assignment -name SEARCH_PATH rtl
+set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005
+set_global_assignment -name VERILOG_SHOW_LMF_MAPPING_MESSAGES OFF
+set_global_assignment -name DEVICE_FILTER_PACKAGE "ANY QFP"
+set_global_assignment -name DEVICE_FILTER_PIN_COUNT 144
+set_global_assignment -name CYCLONEII_OPTIMIZATION_TECHNIQUE SPEED
+set_global_assignment -name AUTO_SHIFT_REGISTER_RECOGNITION OFF
+set_global_assignment -name AUTO_ROM_RECOGNITION OFF
+
+# Fitter Assignments
+# ==================
+set_global_assignment -name DEVICE EP4CE15E22C8
+set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
+set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
+set_global_assignment -name CRC_ERROR_OPEN_DRAIN OFF
+set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT NORMAL
+set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC OFF
+set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION OFF
+set_global_assignment -name RESERVE_DATA0_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DATA1_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_FLASH_NCE_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name ENABLE_CONFIGURATION_PINS OFF
+set_global_assignment -name ENABLE_BOOT_SEL_PIN OFF
+set_global_assignment -name RESERVE_DCLK_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name ROUTER_CLOCKING_TOPOLOGY_ANALYSIS ON
+set_global_assignment -name PLACEMENT_EFFORT_MULTIPLIER 8.0
+set_global_assignment -name ROUTER_EFFORT_MULTIPLIER 2.0
+
+# EDA Netlist Writer Assignments
+# ==============================
+set_global_assignment -name EDA_SIMULATION_TOOL "<None>"
+
+# Assembler Assignments
+# =====================
+set_global_assignment -name USE_CONFIGURATION_DEVICE ON
+set_global_assignment -name CYCLONEIII_CONFIGURATION_DEVICE EPCS16
+set_global_assignment -name ENABLE_OCT_DONE OFF
+set_global_assignment -name GENERATE_RBF_FILE ON
+
+# Power Estimation Assignments
+# ============================
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "NO HEAT SINK WITH STILL AIR"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+set_global_assignment -name POWER_DEFAULT_INPUT_IO_TOGGLE_RATE 50%
+
+# Advanced I/O Timing Assignments
+# ===============================
+set_global_assignment -name OUTPUT_IO_TIMING_NEAR_END_VMEAS "HALF VCCIO" -rise
+set_global_assignment -name OUTPUT_IO_TIMING_NEAR_END_VMEAS "HALF VCCIO" -fall
+set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -rise
+set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -fall
+
+# start EDA_TOOL_SETTINGS(eda_simulation)
+# ---------------------------------------
+
+	# EDA Netlist Writer Assignments
+	# ==============================
+	set_global_assignment -name EDA_OUTPUT_DATA_FORMAT NONE -section_id eda_simulation
+
+# end EDA_TOOL_SETTINGS(eda_simulation)
+# -------------------------------------
+
+# ------------------
+# start ENTITY(ossc)
+
+	# Fitter Assignments
+	# ==================
 set_instance_assignment -name PLL_COMPENSATE ON -to G_in
 set_instance_assignment -name PLL_COMPENSATE ON -to FID_in
 set_instance_assignment -name PLL_COMPENSATE ON -to HSYNC_in
@@ -169,70 +228,18 @@ set_instance_assignment -name PLL_COMPENSATE ON -to R_in
 set_instance_assignment -name PLL_COMPENSATE ON -to VSYNC_in
 set_instance_assignment -name PLL_COMPENSATE ON -to B_in
 
+	# start DESIGN_PARTITION(Top)
+	# ---------------------------
 
-set_global_assignment -name USE_CONFIGURATION_DEVICE ON
-set_global_assignment -name CRC_ERROR_OPEN_DRAIN OFF
-set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
-set_global_assignment -name OUTPUT_IO_TIMING_NEAR_END_VMEAS "HALF VCCIO" -rise
-set_global_assignment -name OUTPUT_IO_TIMING_NEAR_END_VMEAS "HALF VCCIO" -fall
-set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -rise
-set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -fall
+		# Incremental Compilation Assignments
+		# ===================================
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 
+	# end DESIGN_PARTITION(Top)
+	# -------------------------
 
-set_global_assignment -name SEARCH_PATH rtl
-set_global_assignment -name CYCLONEIII_CONFIGURATION_DEVICE EPCS16
-
-set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005
-set_global_assignment -name VERILOG_SHOW_LMF_MAPPING_MESSAGES OFF
-
-set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS ON
-set_global_assignment -name SMART_RECOMPILE ON
-
-set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT NORMAL
-
-set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC OFF
-set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION OFF
-
-set_global_assignment -name OPTIMIZATION_MODE "AGGRESSIVE PERFORMANCE"
-set_global_assignment -name ALLOW_REGISTER_RETIMING OFF
-
-set_global_assignment -name ENABLE_OCT_DONE OFF
-set_global_assignment -name RESERVE_DATA0_AFTER_CONFIGURATION "USE AS REGULAR IO"
-set_global_assignment -name RESERVE_DATA1_AFTER_CONFIGURATION "USE AS REGULAR IO"
-set_global_assignment -name RESERVE_FLASH_NCE_AFTER_CONFIGURATION "USE AS REGULAR IO"
-set_global_assignment -name ENABLE_CONFIGURATION_PINS OFF
-set_global_assignment -name ENABLE_BOOT_SEL_PIN OFF
-
-set_global_assignment -name RESERVE_DCLK_AFTER_CONFIGURATION "USE AS REGULAR IO"
-set_global_assignment -name GENERATE_RBF_FILE ON
-
-set_global_assignment -name DEVICE_FILTER_PACKAGE "ANY QFP"
-set_global_assignment -name DEVICE_FILTER_PIN_COUNT 144
-set_global_assignment -name POWER_DEFAULT_INPUT_IO_TOGGLE_RATE 50%
-
-
-
-#set_location_assignment PLL_4 -to "scanconverter:scanconverter_inst|pll_3x:pll_linetriple|altpll:altpll_component|pll_3x_altpll:auto_generated|pll1"
-#set_location_assignment PLL_3 -to "scanconverter:scanconverter_inst|pll_3x_lowfreq:pll_linetriple_lowfreq|altpll:altpll_component|pll_3x_lowfreq_altpll:auto_generated|pll1"
-#set_location_assignment PLL_1 -to "scanconverter:scanconverter_inst|pll_2x:pll_linedouble|altpll:altpll_component|pll_2x_altpll:auto_generated|pll1"
-
-
-
-
-
-set_global_assignment -name VERILOG_FILE rtl/videogen.v
-set_global_assignment -name QIP_FILE software/sys_controller/mem_init/meminit.qip
-set_global_assignment -name VERILOG_FILE rtl/ir_rcv.v
-set_global_assignment -name SDC_FILE ossc.sdc
-set_global_assignment -name QSYS_FILE sys.qsys
-set_global_assignment -name VERILOG_FILE rtl/ossc.v
-set_global_assignment -name VERILOG_FILE rtl/scanconverter.v
-set_global_assignment -name QIP_FILE rtl/linebuf.qip
-set_global_assignment -name QIP_FILE rtl/pll_2x.qip
-set_global_assignment -name QIP_FILE rtl/pll_3x.qip
-set_global_assignment -name CDF_FILE output_files/Chain1.cdf
-set_global_assignment -name ROUTER_CLOCKING_TOPOLOGY_ANALYSIS ON
-set_global_assignment -name PLACEMENT_EFFORT_MULTIPLIER 8.0
-set_global_assignment -name ROUTER_EFFORT_MULTIPLIER 2.0
-set_global_assignment -name CYCLONEII_OPTIMIZATION_TECHNIQUE SPEED
+# end ENTITY(ossc)
+# ----------------
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

@@ -60,6 +60,7 @@ static const char *sl_mode_desc[] = { LNG("Off","ｵﾌ"), LNG("Auto","ｼﾞﾄ
 static const char *sl_type_desc[] = { LNG("Horizontal","ｽｲﾍｲ"), LNG("Vertical","ｽｲﾁｮｸ"), LNG("Alternating","ｺｳｺﾞ") };
 static const char *sl_id_desc[] = { LNG("Top","ｳｴ"), LNG("Bottom","ｼﾀ") };
 static const char *audio_dw_sampl_desc[] = { "Off (fs = 96kHz)", "2x  (fs = 48kHz)" };
+static const char *filter_desc[] = { "none", "scale", "hq", "diff" };
 
 static void sampler_phase_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, LNG("%d deg","%d ﾄﾞ"), (v*1125)/100); }
 static void sync_vth_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, "%d mV", (v*1127)/100); }
@@ -69,6 +70,7 @@ static void sl_str_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, "%u%%", 
 static void lines_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, LNG("%u lines","%u ﾗｲﾝ"), v); }
 static void pixels_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, LNG("%u pixels","%u ﾄﾞｯﾄ"), v); }
 static void value_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, "    %u", v); }
+static void ft_str_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, "%u%%", (v+1)*100 / 8); }
 
 MENU(menu_advtiming, P99_PROTECT({ \
     { LNG("H. samplerate","ｽｲﾍｲｻﾝﾌﾟﾙﾚﾄ"),        OPT_AVCONFIG_NUMVAL_U16,{ .num_u16 = { &tc_h_samplerate, H_TOTAL_MIN,   H_TOTAL_MAX, vm_tweak } } },
@@ -130,6 +132,8 @@ MENU(menu_postproc, P99_PROTECT({ \
     { LNG("Horizontal mask","ｽｲﾍｲﾏｽｸ"),         OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.h_mask,      OPT_NOWRAP, 0, HV_MASK_MAX, pixels_disp } } },
     { LNG("Vertical mask","ｽｲﾁｮｸﾏｽｸ"),          OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.v_mask,      OPT_NOWRAP, 0, HV_MASK_MAX, pixels_disp } } },
     { "Mask brightness",                       OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.mask_br,     OPT_NOWRAP, 0, HV_MASK_MAX_BR, value_disp } } },
+    { "Filter",                                  OPT_AVCONFIG_SELECTION,  { .sel = { &tc.ft_type,    OPT_WRAP, SETTING_ITEM(filter_desc) } } },
+    { "Filter str.",                             OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.ft_str,      OPT_NOWRAP, 0, FILTERSTR_MAX, ft_str_disp } } },
 }))
 
 #ifdef DIY_AUDIO

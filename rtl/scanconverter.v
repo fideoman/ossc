@@ -53,6 +53,10 @@
 `define HSYNC_LEADING_EDGE      ((prev_hs == `HI) & (HSYNC_in == `LO))
 `define HSYNC_TRAILING_EDGE     ((prev_hs == `LO) & (HSYNC_in == `HI))
 
+`define LINEBUF_NUM             4
+`define LINEBUF_READ_INDEX      (linebuf_4xmode ? linebuf_read_idx : {linebuf_read_idx[1], linebuf_hoffset_d2[10]})
+`define LINEBUF_WRITE_INDEX     (linebuf_4xmode ? linebuf_write_idx : {linebuf_write_idx[1], hcnt_1x_sample_offset[10]})
+
 module scanconverter (
     input reset_n,
     input [7:0] R_in,
@@ -65,6 +69,7 @@ module scanconverter (
     input [31:0] h_info,
     input [31:0] h_info2,
     input [31:0] v_info,
+    input [31:0] f_info,
     output reg [7:0] R_out,
     output reg [7:0] G_out,
     output reg [7:0] B_out,
@@ -99,6 +104,8 @@ reg FID_1x, FID_prev;
 
 wire DE_act;
 reg DE_pp1, DE_pp2;
+
+reg [2:0] row_pp1, col_pp1;
 
 wire [11:0] linebuf_hoffset; //Offset for line (max. 2047 pixels), MSB indicates which line is read/written
 wire [11:0] hcnt_act;
@@ -150,11 +157,30 @@ reg [2:0] H_OPT_SCALE;
 reg [2:0] H_OPT_SAMPLE_MULT;
 reg [2:0] H_OPT_SAMPLE_SEL;
 reg [9:0] H_L5BORDER;
+reg [2:0] F_FILTERSTR;
+reg [1:0] F_FILTER;
 
 //8 bits per component -> 16.7M colors
-reg [7:0] R_1x, G_1x, B_1x, R_2x, G_2x, B_2x, R_3x, G_3x, B_3x, R_4x, G_4x, B_4x, R_5x, G_5x, B_5x, R_pp1, G_pp1, B_pp1;
+reg [7:0] R_1x, G_1x, B_1x, R_2x, G_2x, B_2x, R_3x, G_3x, B_3x, R_4x, G_4x, B_4x, R_5x, G_5x, B_5x, R_pp1, G_pp1, B_pp1, R_pp2, G_pp2, B_pp2;
 wire [7:0] R_lbuf, G_lbuf, B_lbuf;
 wire [7:0] R_act, G_act, B_act;
+
+// alignment for write clock skip
+reg [11:0] hcnt_1x_sample_offset;
+reg [2:0] hcnt_1x_sample_cnt;
+
+// linebuffer access
+wire linebuf_wren[`LINEBUF_NUM];
+reg [1:0] linebuf_read_idx_m1, linebuf_read_idx, linebuf_read_idx_a1, linebuf_write_idx;
+wire [23:0] linebuf_o[`LINEBUF_NUM];
+reg [11:0] linebuf_hoffset_d1, linebuf_hoffset_d2;
+reg linebuf_4xmode;
+reg [23:0] prev_pp0, next_pp0;
+
+// filter outputs
+wire [23:0] data_fout;
+wire HSYNC_fout, VSYNC_fout, DE_fout;
+wire [2:0] row_fout, col_fout;
 
 assign pclk_1x = PCLK_in;
 assign PCLK_out = pclk_act;
@@ -399,14 +425,49 @@ pll_3x pll_linetriple (
 );
 
 //TODO: add secondary buffers for interlaced signals with alternative field order
-linebuf linebuf_rgb (
+// linebuf linebuf_rgb (
+    // .data ( {R_1x, G_1x, B_1x} ),
+    // .rdaddress ( linebuf_hoffset + (~line_idx << 11) ),
+    // .rdclock ( linebuf_rdclock ),
+    // .wraddress ( hcnt_1x_sample_offset + (line_idx << 11) ),
+    // .wrclock ( pclk_1x ),
+    // .wren ( H_MULTMODE != `H_MULTMODE_OPTIMIZED || hcnt_1x_sample_cnt == H_OPT_SAMPLE_SEL ),
+    // .q ( {R_lbuf, G_lbuf, B_lbuf} )
+// );
+
+linebuf_1k linebuf_rgb[`LINEBUF_NUM] (
     .data ( {R_1x, G_1x, B_1x} ),
-    .rdaddress ( linebuf_hoffset + (~line_idx << 11) ),
+    .rdaddress ( linebuf_hoffset[9:0] ),
     .rdclock ( linebuf_rdclock ),
-    .wraddress ( hcnt_1x + (line_idx << 11) ),
+    .wraddress ( hcnt_1x_sample_offset[9:0] ),
     .wrclock ( pclk_1x ),
-    .wren ( 1'b1 ),
-    .q ( {R_lbuf, G_lbuf, B_lbuf} )
+    .wren ( linebuf_wren ),
+    .q ( linebuf_o )
+);
+
+filter filter_inst(
+    .pclk_act(pclk_act),
+
+    .mode(linebuf_4xmode ? F_FILTER : 0),
+    .str(F_FILTERSTR),
+    .col(V_MULTMODE == `V_MULTMODE_2X ? (col_id_act << 1) : col_id_act),
+    .row(V_MULTMODE == `V_MULTMODE_2X ? (line_id_act << 1) : line_id_act),
+
+    .prev_in(prev_pp0),
+    .curr_in({ R_act, G_act, B_act }),
+    .next_in(next_pp0),
+    .hsync_in(HSYNC_act),
+    .vsync_in(VSYNC_act),
+    .dataenable_in(DE_act),
+
+    .data_out(data_fout),
+    .hsync_out(HSYNC_fout),
+    .vsync_out(VSYNC_fout),
+    .dataenable_out(DE_fout),
+    .col_out(col_fout),
+    .row_out(row_fout),
+
+    .reset_n(reset_n) 
 );
 
 //Postprocess pipeline
@@ -417,31 +478,63 @@ begin
             R_pp1 <= 8'h00;
             G_pp1 <= 8'h00;
             B_pp1 <= 8'h00;
+            R_pp2 <= 8'h00;
+            G_pp2 <= 8'h00;
+            B_pp2 <= 8'h00;
             HSYNC_pp1 <= 1'b0;
             VSYNC_pp1 <= 1'b0;
             DE_pp1 <= 1'b0;
+            HSYNC_pp2 <= 1'b0;
+            VSYNC_pp2 <= 1'b0;
+            DE_pp2 <= 1'b0;
+            row_pp1 <= 3'b0;
+            col_pp1 <= 3'b0;
             R_out <= 8'h00;
             G_out <= 8'h00;
             B_out <= 8'h00;
             HSYNC_out <= 1'b0;
             VSYNC_out <= 1'b0;
             DE_out <= 1'b0;
+
+            prev_pp0 <= 0;
+            next_pp0 <= 0;
+
+            linebuf_hoffset_d1 <= 0;
+            linebuf_hoffset_d2 <= 0;
         end
     else
         begin
-            R_pp1 <= apply_scanlines(V_SCANLINEMODE, R_act, H_SCANLINESTR, V_SCANLINEID, line_id_act, col_id_act, FID_1x);
-            G_pp1 <= apply_scanlines(V_SCANLINEMODE, G_act, H_SCANLINESTR, V_SCANLINEID, line_id_act, col_id_act, FID_1x);
-            B_pp1 <= apply_scanlines(V_SCANLINEMODE, B_act, H_SCANLINESTR, V_SCANLINEID, line_id_act, col_id_act, FID_1x);
-            HSYNC_pp1 <= HSYNC_act;
-            VSYNC_pp1 <= VSYNC_act;
-            DE_pp1 <= DE_act;
+            // generate inputs to filter
+            prev_pp0 <= linebuf_o[linebuf_read_idx_m1];
+            next_pp0 <= linebuf_o[linebuf_read_idx_a1];
             
-            R_out <= apply_mask(1, R_pp1, H_MASK_BR, hcnt_act, H_BACKPORCH+H_MASK+2'h2, H_BACKPORCH+H_ACTIVE-H_MASK+2'h2, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
-            G_out <= apply_mask(1, G_pp1, H_MASK_BR, hcnt_act, H_BACKPORCH+H_MASK+2'h2, H_BACKPORCH+H_ACTIVE-H_MASK+2'h2, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
-            B_out <= apply_mask(1, B_pp1, H_MASK_BR, hcnt_act, H_BACKPORCH+H_MASK+2'h2, H_BACKPORCH+H_ACTIVE-H_MASK+2'h2, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
-            HSYNC_out <= HSYNC_pp1;
-            VSYNC_out <= VSYNC_pp1;
-            DE_out <= DE_pp1;
+            // pp0 - filter
+            { R_pp1, G_pp1, B_pp1 } <= data_fout;
+            HSYNC_pp1 <= HSYNC_fout;
+            VSYNC_pp1 <= VSYNC_fout;
+            DE_pp1 <= DE_fout;
+            row_pp1 <= row_fout;
+            col_pp1 <= col_fout;
+
+            // pp1 - scanlines
+            R_pp2 <= apply_scanlines(V_SCANLINEMODE, R_pp1, H_SCANLINESTR, V_SCANLINEID, row_pp1, col_pp1, FID_1x);
+            G_pp2 <= apply_scanlines(V_SCANLINEMODE, G_pp1, H_SCANLINESTR, V_SCANLINEID, row_pp1, col_pp1, FID_1x);
+            B_pp2 <= apply_scanlines(V_SCANLINEMODE, B_pp1, H_SCANLINESTR, V_SCANLINEID, row_pp1, col_pp1, FID_1x);
+            HSYNC_pp2 <= HSYNC_pp1;
+            VSYNC_pp2 <= VSYNC_pp1;
+            DE_pp2 <= DE_pp1;
+            
+            // pp2 - mask
+            R_out <= apply_mask(1, R_pp2, H_MASK_BR, hcnt_act, H_BACKPORCH+H_MASK+2'h2, H_BACKPORCH+H_ACTIVE-H_MASK+2'h2, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
+            G_out <= apply_mask(1, G_pp2, H_MASK_BR, hcnt_act, H_BACKPORCH+H_MASK+2'h2, H_BACKPORCH+H_ACTIVE-H_MASK+2'h2, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
+            B_out <= apply_mask(1, B_pp2, H_MASK_BR, hcnt_act, H_BACKPORCH+H_MASK+2'h2, H_BACKPORCH+H_ACTIVE-H_MASK+2'h2, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
+            HSYNC_out <= HSYNC_pp2;
+            VSYNC_out <= VSYNC_pp2;
+            DE_out <= DE_pp2;
+            
+            // account for the 2 cycle read latency of the linebuffer
+            linebuf_hoffset_d1 <= linebuf_hoffset;
+            linebuf_hoffset_d2 <= linebuf_hoffset_d1;
         end
 end
 
@@ -507,6 +600,8 @@ begin
             H_OPT_SCALE <= 0;
             H_L5BORDER <= 0;
             H_MASK_BR <= 0;
+            F_FILTERSTR <= 0;
+            F_FILTER <= 0;
             prev_hs <= 0;
             prev_vs <= 0;
             HSYNC_start <= 0;
@@ -517,6 +612,9 @@ begin
             VSYNC_1x <= 0;
             DE_1x <= 0;
             FID_1x <= 0;
+            
+            hcnt_1x_sample_offset <= 0;
+            hcnt_1x_sample_cnt <= 0;
         end
     else
         begin
@@ -528,9 +626,20 @@ begin
                     vcnt_1x <= vcnt_1x + 1'b1;
                     vcnt_1x_tvp <= vcnt_1x_tvp + 1'b1;
                     FID_1x <= fpga_vsyncgen[`VSYNCGEN_CHOPMID_BIT] ? 1'b0 : (fpga_vsyncgen[`VSYNCGEN_GENMID_BIT] ? (vcnt_1x > (V_BACKPORCH + V_ACTIVE)) : FID_in);
+                    
+                    hcnt_1x_sample_offset <= 0;
+                    hcnt_1x_sample_cnt <= 0;
                 end
             else
                 begin
+                    if (H_MULTMODE != `H_MULTMODE_OPTIMIZED || hcnt_1x_sample_cnt == H_OPT_SAMPLE_MULT-1'b1) begin
+                        hcnt_1x_sample_offset <= hcnt_1x_sample_offset + 1'b1;
+                        hcnt_1x_sample_cnt <= 0;
+                    end
+                    else begin
+                        hcnt_1x_sample_cnt <= hcnt_1x_sample_cnt + 1'b1;
+                    end
+                    
                     hcnt_1x <= hcnt_1x + 1'b1;
                 end
 
@@ -579,6 +688,9 @@ begin
                     H_OPT_SCALE <= h_info2[18:16];
                     H_MASK_BR <= h_info2[26:23];
                     H_L5BORDER <= h_info2[27] ? (1920-h_info[19:9])/2 : (1600-h_info[19:9])/2;
+                    
+                    F_FILTERSTR <= f_info[2:0];
+                    F_FILTER <= f_info[4:3];
                 end
                 
             prev_hs <= HSYNC_in;
@@ -590,11 +702,15 @@ begin
                 
             // Check if extra vsync needed
             fpga_vsyncgen[`VSYNCGEN_GENMID_BIT] <= (lines_1x > ({1'b0, V_ACTIVE} << 1)) ? 1'b1 : 1'b0;
-                
-                
+            
             R_1x <= R_in;
             G_1x <= G_in;
             B_1x <= B_in;
+            
+            //R_1x <= vcnt_1x[7:0] + linebuf_hoffset[7:0] + (linebuf_hoffset[0] ? 8'd31 : 8'd32);
+            //G_1x <= vcnt_1x[7:0] + linebuf_hoffset[7:0] + (linebuf_hoffset[1] ? 8'd31 : 8'd32);
+            //B_1x <= vcnt_1x[7:0] + linebuf_hoffset[7:0] + (linebuf_hoffset[2] ? 8'd31 : 8'd32);
+            
             HSYNC_1x <= HSYNC_in;
 
             // Ignore possible invalid vsyncs generated by TVP7002
@@ -630,14 +746,14 @@ begin
                 begin
                     hcnt_2x <= 0;
                     line_out_idx_2x <= 0;
-                    hcnt_2x_opt <= H_OPT_SAMPLE_SEL;
+                    hcnt_2x_opt <= 0; // H_OPT_SAMPLE_SEL;
                     hcnt_2x_opt_ctr <= 0;
                 end
             else if (hcnt_2x == hmax[~line_idx])
                 begin
                     hcnt_2x <= 0;
                     line_out_idx_2x <= line_out_idx_2x + 1'b1;
-                    hcnt_2x_opt <= H_OPT_SAMPLE_SEL;
+                    hcnt_2x_opt <= 0; // H_OPT_SAMPLE_SEL;
                     hcnt_2x_opt_ctr <= 0;
                 end
             else
@@ -647,7 +763,7 @@ begin
                         begin
                             if (hcnt_2x_opt_ctr == H_OPT_SCALE-1'b1)
                                 begin
-                                    hcnt_2x_opt <= hcnt_2x_opt + H_OPT_SAMPLE_MULT;
+                                    hcnt_2x_opt <= hcnt_2x_opt + 1'b1; // H_OPT_SAMPLE_MULT;
                                     hcnt_2x_opt_ctr <= 0;
                                 end
                             else
@@ -720,14 +836,14 @@ begin
                 begin
                     hcnt_3x <= 0;
                     line_out_idx_3x <= 0;
-                    hcnt_3x_opt <= H_OPT_SAMPLE_SEL;
+                    hcnt_3x_opt <= 0; // H_OPT_SAMPLE_SEL;
                     hcnt_3x_opt_ctr <= 0;
                 end
             else if (hcnt_3x == hmax[~line_idx])
                 begin
                     hcnt_3x <= 0;
                     line_out_idx_3x <= line_out_idx_3x + 1'b1;
-                    hcnt_3x_opt <= H_OPT_SAMPLE_SEL;
+                    hcnt_3x_opt <= 0; // H_OPT_SAMPLE_SEL;
                     hcnt_3x_opt_ctr <= 0;
                 end
             else
@@ -737,7 +853,7 @@ begin
                         begin
                             if (hcnt_3x_opt_ctr == H_OPT_SCALE-1'b1)
                                 begin
-                                    hcnt_3x_opt <= hcnt_3x_opt + H_OPT_SAMPLE_MULT;
+                                    hcnt_3x_opt <= hcnt_3x_opt + 1'b1; // H_OPT_SAMPLE_MULT;
                                     hcnt_3x_opt_ctr <= 0;
                                 end
                             else
@@ -812,14 +928,14 @@ begin
                 begin
                     hcnt_4x <= 0;
                     line_out_idx_4x <= 0;
-                    hcnt_4x_opt <= H_OPT_SAMPLE_SEL;
+                    hcnt_4x_opt <= 0; // H_OPT_SAMPLE_SEL;
                     hcnt_4x_opt_ctr <= 0;
                 end
             else if (hcnt_4x == hmax[~line_idx])
                 begin
                     hcnt_4x <= 0;
                     line_out_idx_4x <= line_out_idx_4x + 1'b1;
-                    hcnt_4x_opt <= H_OPT_SAMPLE_SEL;
+                    hcnt_4x_opt <= 0; // H_OPT_SAMPLE_SEL;
                     hcnt_4x_opt_ctr <= 0;
                 end
             else
@@ -829,7 +945,7 @@ begin
                         begin
                             if (hcnt_4x_opt_ctr == H_OPT_SCALE-1'b1)
                                 begin
-                                    hcnt_4x_opt <= hcnt_4x_opt + H_OPT_SAMPLE_MULT;
+                                    hcnt_4x_opt <= hcnt_4x_opt + 1'b1; // H_OPT_SAMPLE_MULT;
                                     hcnt_4x_opt_ctr <= 0;
                                 end
                             else
@@ -895,14 +1011,14 @@ begin
                 begin
                     hcnt_5x <= 0;
                     line_out_idx_5x <= 0;
-                    hcnt_5x_opt <= 120 + H_OPT_SAMPLE_SEL;
+                    hcnt_5x_opt <= 120/5 + 0; // H_OPT_SAMPLE_SEL;
                     hcnt_5x_opt_ctr <= 0;
                 end
             else if (hcnt_5x == hmax[~line_idx])
                 begin
                     hcnt_5x <= 0;
                     line_out_idx_5x <= line_out_idx_5x + 1'b1;
-                    hcnt_5x_opt <= 120 + H_OPT_SAMPLE_SEL;
+                    hcnt_5x_opt <= 120/5 + 0; // H_OPT_SAMPLE_SEL;
                     hcnt_5x_opt_ctr <= 0;
                 end
             else
@@ -912,7 +1028,7 @@ begin
                         begin
                             if (hcnt_5x_opt_ctr == H_OPT_SCALE-1'b1)
                                 begin
-                                    hcnt_5x_opt <= hcnt_5x_opt + H_OPT_SAMPLE_MULT;
+                                    hcnt_5x_opt <= hcnt_5x_opt + 1'b1; // H_OPT_SAMPLE_MULT;
                                     hcnt_5x_opt_ctr <= 0;
                                 end
                             else
@@ -952,6 +1068,41 @@ begin
             //TODO: VSYNC_5x
             DE_5x <= ((hcnt_5x >= H_BACKPORCH - H_L5BORDER) & (hcnt_5x < H_BACKPORCH + H_ACTIVE + H_L5BORDER)) & ((vcnt_5x_ref >= V_BACKPORCH) & (vcnt_5x_ref < V_BACKPORCH + V_ACTIVE));
         end
+end
+
+// linebuffer
+always @(*) begin
+    { R_lbuf, G_lbuf, B_lbuf } = linebuf_o[`LINEBUF_READ_INDEX];
+
+    for (int i = 0; i < `LINEBUF_NUM; i++)
+        if (i == `LINEBUF_WRITE_INDEX)
+            linebuf_wren[i] = H_MULTMODE != `H_MULTMODE_OPTIMIZED || hcnt_1x_sample_cnt == H_OPT_SAMPLE_SEL;
+        else
+            linebuf_wren[i] = 1'b0;
+    
+end
+
+always @(posedge pclk_1x or negedge reset_n)
+begin
+    if (!reset_n) begin
+        linebuf_read_idx_m1 <= 3;
+        linebuf_read_idx <= 0;
+        linebuf_read_idx_a1 <= 1;
+        linebuf_write_idx <= 2;
+        
+        linebuf_4xmode <= 1'b0;
+    end
+    else begin
+        if (`HSYNC_TRAILING_EDGE) begin
+            linebuf_read_idx_m1 <= linebuf_4xmode ? linebuf_read_idx : linebuf_read_idx_a1;
+            linebuf_read_idx <= linebuf_4xmode ? linebuf_read_idx_a1 : linebuf_write_idx;
+            linebuf_read_idx_a1 <= linebuf_4xmode ? linebuf_write_idx : linebuf_read_idx_m1;
+            linebuf_write_idx <= linebuf_4xmode ? linebuf_read_idx_m1 : linebuf_read_idx;
+        end
+        
+        // input resolution must be <= 1K.  For now, only support 240P optimized modes (320 and 256)
+        linebuf_4xmode <= (H_MULTMODE == `H_MULTMODE_OPTIMIZED) && (V_MULTMODE == `V_MULTMODE_2X || V_MULTMODE == `V_MULTMODE_3X);
+    end
 end
 
 endmodule

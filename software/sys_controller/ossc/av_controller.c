@@ -297,7 +297,10 @@ status_t get_status(tvp_input_t input, video_format format)
         (tc.h_mask != cm.cc.h_mask) ||
         (tc.v_mask != cm.cc.v_mask) ||
         (tc.mask_br != cm.cc.mask_br) ||
-        (tc.ar_256col != cm.cc.ar_256col))
+        (tc.ar_256col != cm.cc.ar_256col) ||
+        (tc.ft_type != cm.cc.ft_type) ||
+        (tc.ft_str != cm.cc.ft_str)
+        )
         status = (status < INFO_CHANGE) ? INFO_CHANGE : status;
 
     if (tc.sampler_phase != cm.cc.sampler_phase) {
@@ -355,6 +358,8 @@ status_t get_status(tvp_input_t input, video_format format)
 // v_info:     [31:30]                 [29:28]     [27]   [26:24]            [23:18]       [17:7]        [6]    [5:0]
 //           | V_SCANLINEMODE[1:0] | V_SCANLINEID |    | V_MULTMODE[2:0] | V_MASK[5:0] | V_ACTIVE[10:0] |   | V_BACKPORCH[5:0] |
 //
+// f_info:     [31:5]    [4:3]           [2:0]
+//           |         |  F_FILTER[1:0] | F_FILTERSTR[2:0] |
 void set_videoinfo()
 {
     alt_u8 sl_mode_fpga;
@@ -426,6 +431,7 @@ void set_videoinfo()
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_2_BASE, (cm.fpga_hmultmode<<30) | (h_mask<<20) | ((cm.sample_mult*video_modes[cm.id].h_active)<<9) | cm.sample_mult*(alt_u16)video_modes[cm.id].h_backporch);
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_5_BASE, ((cm.cc.l5_fmt!=L5FMT_1600x1200)<<27) | (cm.cc.mask_br<<23) | (cm.cc.sl_str<<19) | (h_opt_scale<<16) | (cm.sample_sel<<13) | (cm.sample_mult<<10) | h_opt_startoffs);
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_3_BASE, (sl_mode_fpga<<30) | (cm.cc.sl_id<<28) | (cm.fpga_vmultmode<<24) | (cm.cc.v_mask<<18) | (v_active<<7) | v_backporch);
+    IOWR_ALTERA_AVALON_PIO_DATA(PIO_6_BASE, (cm.cc.ft_type<<3) | (cm.cc.ft_str<<0));
 }
 
 // Configure TVP7002 and scan converter logic based on the video mode

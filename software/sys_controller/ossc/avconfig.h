@@ -33,6 +33,7 @@
 #define VSYNC_THOLD_MAX     200
 #define SD_SYNC_WIN_MAX     255
 #define PLL_COAST_MAX       5
+#define FILTERSTR_MAX       7
 
 #define SL_MODE_MAX         2
 #define SL_TYPE_MAX         2
@@ -77,6 +78,8 @@ typedef struct {
     alt_u8 audio_swap_lr;
 #endif
     alt_u8 def_input;
+    alt_u8 ft_type;
+    alt_u8 ft_str;
     color_setup_t col;
 } __attribute__((packed)) avconfig_t;
 
