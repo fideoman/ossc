@@ -431,6 +431,7 @@ void set_videoinfo()
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_2_BASE, (cm.fpga_hmultmode<<30) | (h_mask<<20) | ((cm.sample_mult*video_modes[cm.id].h_active)<<9) | cm.sample_mult*(alt_u16)video_modes[cm.id].h_backporch);
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_5_BASE, ((cm.cc.l5_fmt!=L5FMT_1600x1200)<<27) | (cm.cc.mask_br<<23) | (cm.cc.sl_str<<19) | (h_opt_scale<<16) | (cm.sample_sel<<13) | (cm.sample_mult<<10) | h_opt_startoffs);
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_3_BASE, (sl_mode_fpga<<30) | (cm.cc.sl_id<<28) | (cm.fpga_vmultmode<<24) | (cm.cc.v_mask<<18) | (v_active<<7) | v_backporch);
+    //IOWR_ALTERA_AVALON_PIO_DATA(PIO_6_BASE, ((video_modes[cm.id].h_total < 1024 ? cm.cc.ft_type : 0)<<3) | (cm.cc.ft_str<<0));
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_6_BASE, (cm.cc.ft_type<<3) | (cm.cc.ft_str<<0));
 }
 

@@ -36,6 +36,8 @@ module filter (
     input [2:0] str,
     input [2:0] col,
     input [2:0] row,
+    input [2:0] col_id,
+    input [2:0] line_id,
 
     input [23:0] prev_in,
     input [23:0] curr_in,
@@ -48,8 +50,8 @@ module filter (
     output reg hsync_out,
     output reg vsync_out,
     output reg dataenable_out,
-    output reg [2:0] col_out,
-    output reg [2:0] row_out,
+    output reg [2:0] col_id_out,
+    output reg [2:0] line_id_out,
 
     input reset_n    
 );
@@ -77,8 +79,8 @@ function cmp;
     reg ret;
     
     begin
-        { a_r, a_b, a_g } = a;
-        { b_r, b_b, b_g } = b;
+        { a_r, a_b, a_g } = a; //{ {a[23:18],2'b00}, {a[15:10],2'b00}, {a[7:2],2'b00} };
+        { b_r, b_b, b_g } = b; //{ {b[23:18],2'b00}, {b[15:10],2'b00}, {b[7:2],2'b00} };
 
         ret = (((a_r >= b_r) ? a_r - b_r : b_r - a_r) < `CMP_DELTA) && (((a_b >= b_b) ? a_b - b_b : b_b - a_b) < `CMP_DELTA) && (((a_g >= b_g) ? a_g - b_g : b_g - a_g) < `CMP_DELTA);
         //ret = (((a_r >= b_r) ? a_r - b_r : b_r - a_r) < 16) && (((a_b >= b_b) ? a_b - b_b : b_b - a_b) < 16) && (((a_g >= b_g) ? a_g - b_g : b_g - a_g) < 16);
@@ -424,6 +426,8 @@ reg [23:0] prev_m1, prev_m2;
 reg [23:0] curr_m1, curr_m2;
 reg [23:0] next_m1, next_m2;
 
+reg [23:0] curr_pp0;
+
 // pass through
 reg hsync_f[`FILTER_STAGES];
 reg vsync_f[`FILTER_STAGES];
@@ -451,6 +455,7 @@ reg [3:0] hq_index_f1[9], hq_index_f2[9];
 reg [23:0] hq_data_f2[9], hq_data_f3[9];
 reg       center_f2;
 reg       cmp_dist_f1;
+reg [2:0] line_id_f[`FILTER_STAGES], col_id_f[`FILTER_STAGES];
 
 // copy
 reg [23:0] copy_o[`FILTER_STAGES][3][3];
@@ -523,6 +528,8 @@ begin
             dataenable_f[0] <= dataenable_f0;
             row_f[0] <= row;
             col_f[0] <= col;
+            line_id_f[0] <= line_id;
+            col_id_f[0] <= col_id;
             
             // pipeline the other signals
             for (int i = `FILTER_STAGES - 1; i > 0; i--) begin
@@ -531,6 +538,8 @@ begin
                 dataenable_f[i] <= dataenable_f[i-1];
                 row_f[i] <= row_f[i-1];
                 col_f[i] <= col_f[i-1];
+                line_id_f[i] <= line_id_f[i-1];
+                col_id_f[i] <= col_id_f[i-1];
             end
 
             // <SCALE>
@@ -552,10 +561,14 @@ begin
                            cmp_dist(matrix_f0[`FT_E], matrix_f0[`FT_C]) || cmp_dist(matrix_f0[`FT_E], matrix_f0[`FT_A]) || cmp_dist(matrix_f0[`FT_E], matrix_f0[`FT_G]) || cmp_dist(matrix_f0[`FT_E], matrix_f0[`FT_I]);
                         
             // f1
-            lerp_EB_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_B], cmp_dist_f1 ? (str >> 1) : str);
-            lerp_ED_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_D], cmp_dist_f1 ? (str >> 1) : str);
-            lerp_EF_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_F], cmp_dist_f1 ? (str >> 1) : str);
-            lerp_EH_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_H], cmp_dist_f1 ? (str >> 1) : str);
+            //lerp_EB_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_B], cmp_dist_f1 ? (str >> 1) : str);
+            //lerp_ED_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_D], cmp_dist_f1 ? (str >> 1) : str);
+            //lerp_EF_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_F], cmp_dist_f1 ? (str >> 1) : str);
+            //lerp_EH_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_H], cmp_dist_f1 ? (str >> 1) : str);
+            lerp_EB_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_B], str);
+            lerp_ED_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_D], str);
+            lerp_EF_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_F], str);
+            lerp_EH_f2 <= lerp(matrix_f1[`FT_E], matrix_f1[`FT_H], str);
             
             scaletemp_f2[0][0] <= (cmp_DB1_f1 && scalecond_f1);
             scaletemp_f2[0][1] <= (((cmp_DB1_f1 && cmp_EC0_f1) || (cmp_BF1_f1 && cmp_EA0_f1)) && scalecond_f1);
@@ -673,8 +686,8 @@ begin
             hsync_out <= hsync_f[`FILTER_STAGES-1];
             vsync_out <= vsync_f[`FILTER_STAGES-1];
             dataenable_out <= dataenable_f[`FILTER_STAGES-1];
-            col_out <= col_f[`FILTER_STAGES-1];
-            row_out <= row_f[`FILTER_STAGES-1];
+            line_id_out <= line_id_f[`FILTER_STAGES-1];
+            col_id_out <= col_id_f[`FILTER_STAGES-1];
         end
 end
 

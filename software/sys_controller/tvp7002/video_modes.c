@@ -82,15 +82,15 @@ alt_8 get_mode_id(alt_u32 totlines, alt_u8 progressive, alt_u32 hz, video_type t
                     break;
                 case MODE_L2:
                     cm.fpga_vmultmode = FPGA_V_MULTMODE_2X;
-                    if ((video_modes[i].group == GROUP_240P) || (video_modes[i].group == GROUP_384P) || (video_modes[i].group == GROUP_480I)) {
+                    if ((video_modes[i].group == GROUP_240P) || (video_modes[i].group == GROUP_384P) || (video_modes[i].group == GROUP_480I) || (video_modes[i].group == GROUP_DTV480P) || (video_modes[i].group == GROUP_VGA480P)) {
                         cm.fpga_hmultmode = FPGA_H_MULTMODE_OPTIMIZED;
                         cm.sample_mult = 2;
                     } else {
                         cm.fpga_hmultmode = FPGA_H_MULTMODE_FULLWIDTH;
                     }
                     cm.hdmitx_pixelrep = ((video_modes[i].group == GROUP_384P) ||
-                                          (video_modes[i].group == GROUP_DTV480P) ||
-                                          (video_modes[i].group == GROUP_VGA480P) ||
+                                          //(video_modes[i].group == GROUP_DTV480P) ||
+                                          //(video_modes[i].group == GROUP_VGA480P) ||
                                           ((video_modes[i].group == GROUP_1080I) && (video_modes[i].h_total < 1200))) ? HDMITX_PIXELREP_2X : HDMITX_PIXELREP_DISABLE;
                     break;
                 case MODE_L3_GEN_16_9:

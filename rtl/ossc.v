@@ -76,6 +76,7 @@ wire VSYNC_out_videogen;
 wire PCLK_out_videogen;
 wire DE_out_videogen;
 
+wire debug_out, debug_out2;
 
 reg [3:0] cpu_reset_ctr;
 reg cpu_reset_n = 1'b1;
@@ -152,8 +153,9 @@ assign reset_n = sys_ctrl[0];   //HDMI_TX_RST_N in v1.2 PCB
 
 
 `ifdef DEBUG
-assign LED_R = HSYNC_in_L;
-assign LED_G = VSYNC_in_L;
+assign LED_R = debug_out;
+//assign LED_R = HSYNC_in_L;
+assign LED_G = debug_out2;
 `else
 assign LED_R = videogen_sel ? 1'b0 : ((pll_lock_lost != 2'h0)|h_unstable);
 assign LED_G = (ir_code == 0);
@@ -229,7 +231,10 @@ scanconverter scanconverter_inst (
     .pclk_lock      (pclk_lock),
     .pll_lock_lost  (pll_lock_lost),
     .lines_out      (lines_out),
-    .tvp_lines      (tvp_lines)
+    .tvp_lines      (tvp_lines),
+    
+    .debug_out      (debug_out),
+    .debug_out2     (debug_out2)
 );
 
 ir_rcv ir0 (

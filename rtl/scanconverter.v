@@ -82,15 +82,18 @@ module scanconverter (
     output [1:0] pclk_lock,
     output [1:0] pll_lock_lost,
     output [10:0] lines_out,
-    output reg [10:0] tvp_lines
+    output reg [10:0] tvp_lines,
+
+    output debug_out,
+    output debug_out2
 );
 
 wire pclk_1x, pclk_2x, pclk_3x, pclk_4x, pclk_5x;
 wire linebuf_rdclock;
 
 wire pclk_act;
-wire [2:0] line_id_act;
-wire [2:0] col_id_act;
+wire [2:0] line_id_act, row_act;
+wire [2:0] col_id_act, col_act;
 
 wire pclk_2x_lock, pclk_3x_lock;
 
@@ -133,7 +136,7 @@ reg [2:0] pclk_5x_cnt;
 reg DE_1x, DE_2x, DE_3x, DE_4x, DE_5x;
 
 reg prev_hs, prev_vs;
-reg [11:0] hmax[0:1];
+reg [11:0] hmax[0:1], hmax_sample;
 reg line_idx;
 reg [1:0] line_out_idx_2x, line_out_idx_3x, line_out_idx_4x;
 reg [2:0] line_out_idx_5x;
@@ -180,11 +183,15 @@ reg [23:0] prev_pp0, next_pp0;
 // filter outputs
 wire [23:0] data_fout;
 wire HSYNC_fout, VSYNC_fout, DE_fout;
-wire [2:0] row_fout, col_fout;
+wire [2:0] line_id_fout, col_id_fout;
 
 assign pclk_1x = PCLK_in;
 assign PCLK_out = pclk_act;
 assign pclk_lock = {pclk_2x_lock, pclk_3x_lock};
+
+// debug_out
+assign debug_out = linebuf_4xmode;
+assign debug_out2 = F_FILTER == 0;
 
 //Scanline generation
 function [7:0] apply_scanlines;
@@ -251,7 +258,11 @@ begin
         col_id_act = {2'b00, hcnt_1x[0]};
         hcnt_act = hcnt_1x;
         vcnt_act = vcnt_1x;
-    end
+
+        // set to 2 to trigger the filter logic
+        col_act = 2;
+        row_act = 2;
+     end
     `V_MULTMODE_2X: begin
         R_act = R_2x;
         G_act = G_2x;
@@ -266,21 +277,31 @@ begin
             linebuf_hoffset = hcnt_2x;
             pclk_act = pclk_2x;
             col_id_act = {2'b00, hcnt_2x[0]};
+
+            col_act = 2;
+            row_act = 2;
         end
         `H_MULTMODE_OPTIMIZED: begin
             linebuf_hoffset = hcnt_2x_opt;
             pclk_act = pclk_1x;
             col_id_act = {2'b00, hcnt_2x[1]};;
+
+            col_act = hcnt_2x[0] << 1;
+            row_act = vcnt_2x_ref[0] << 1;
         end
         default: begin
             linebuf_hoffset = hcnt_2x;
             pclk_act = pclk_2x;
             col_id_act = {2'b00, hcnt_2x[0]};
+
+            col_act = 2;
+            row_act = 2;
         end
         endcase
         line_id_act = {1'b0, line_out_idx_2x[1], line_out_idx_2x[0]^FID_1x};
         hcnt_act = hcnt_2x;
         vcnt_act = vcnt_2x_ref;
+        
     end
     `V_MULTMODE_3X: begin
         HSYNC_act = HSYNC_3x;
@@ -299,6 +320,9 @@ begin
             pclk_act = pclk_3x;
             hcnt_act = hcnt_3x;
             col_id_act = {2'b00, hcnt_3x[0]};
+
+            col_act = 2;
+            row_act = 2;
         end
         `H_MULTMODE_ASPECTFIX: begin
             R_act = R_4x;
@@ -309,6 +333,9 @@ begin
             pclk_act = pclk_4x;
             hcnt_act = hcnt_4x_aspfix;
             col_id_act = {2'b00, hcnt_4x[0]};
+
+            col_act = 2;
+            row_act = 2;
         end
         `H_MULTMODE_OPTIMIZED: begin
             R_act = R_3x;
@@ -319,6 +346,9 @@ begin
             pclk_act = pclk_3x;
             hcnt_act = hcnt_3x;
             col_id_act = hcnt_3x_opt_ctr;
+
+            col_act = col_id_act;
+            row_act = line_id_act;
         end
         default: begin
             R_act = R_3x;
@@ -329,8 +359,12 @@ begin
             pclk_act = pclk_3x;
             hcnt_act = hcnt_3x;
             col_id_act = {2'b00, hcnt_3x[0]};
+
+            col_act = 2;
+            row_act = 2;
         end
         endcase
+
     end
     `V_MULTMODE_4X: begin
         R_act = R_4x;
@@ -359,6 +393,10 @@ begin
             col_id_act = {2'b00, hcnt_4x[0]};
         end
         endcase
+
+        // set to 2 to trigger the filter logic
+        col_act = 2;
+        row_act = 2;
     end
     `V_MULTMODE_5X: begin
         R_act = R_5x;
@@ -387,6 +425,10 @@ begin
             col_id_act = {2'b00, hcnt_5x[0]};
         end
         endcase
+
+        // set to 2 to trigger the filter logic
+        col_act = 2;
+        row_act = 2;
     end
     default: begin
         R_act = R_1x;
@@ -403,6 +445,10 @@ begin
         col_id_act = {2'b00, hcnt_1x[0]};
         hcnt_act = hcnt_1x;
         vcnt_act = vcnt_1x;
+
+        // set to 2 to trigger the filter logic
+        col_act = 2;
+        row_act = 2;
     end
     endcase
 end
@@ -450,8 +496,10 @@ filter filter_inst(
 
     .mode(linebuf_4xmode ? F_FILTER : 0),
     .str(F_FILTERSTR),
-    .col(V_MULTMODE == `V_MULTMODE_2X ? (col_id_act << 1) : col_id_act),
-    .row(V_MULTMODE == `V_MULTMODE_2X ? (line_id_act << 1) : line_id_act),
+    .col(col_act),
+    .row(row_act),
+    .col_id(col_id_act),
+    .line_id(line_id_act),
 
     .prev_in(prev_pp0),
     .curr_in({ R_act, G_act, B_act }),
@@ -464,8 +512,8 @@ filter filter_inst(
     .hsync_out(HSYNC_fout),
     .vsync_out(VSYNC_fout),
     .dataenable_out(DE_fout),
-    .col_out(col_fout),
-    .row_out(row_fout),
+    .col_id_out(col_id_fout),
+    .line_id_out(line_id_fout),
 
     .reset_n(reset_n) 
 );
@@ -513,17 +561,24 @@ begin
             HSYNC_pp1 <= HSYNC_fout;
             VSYNC_pp1 <= VSYNC_fout;
             DE_pp1 <= DE_fout;
-            row_pp1 <= row_fout;
-            col_pp1 <= col_fout;
+            row_pp1 <= line_id_fout;
+            col_pp1 <= col_id_fout;
 
             // pp1 - scanlines
+            // R_pp2 <= apply_scanlines(V_SCANLINEMODE, R_act, H_SCANLINESTR, V_SCANLINEID, line_id_act, col_id_act, FID_1x);
+            // G_pp2 <= apply_scanlines(V_SCANLINEMODE, G_act, H_SCANLINESTR, V_SCANLINEID, line_id_act, col_id_act, FID_1x);
+            // B_pp2 <= apply_scanlines(V_SCANLINEMODE, B_act, H_SCANLINESTR, V_SCANLINEID, line_id_act, col_id_act, FID_1x);
+            // HSYNC_pp2 <= HSYNC_act;
+            // VSYNC_pp2 <= VSYNC_act;
+            // DE_pp2 <= DE_act;
+
             R_pp2 <= apply_scanlines(V_SCANLINEMODE, R_pp1, H_SCANLINESTR, V_SCANLINEID, row_pp1, col_pp1, FID_1x);
             G_pp2 <= apply_scanlines(V_SCANLINEMODE, G_pp1, H_SCANLINESTR, V_SCANLINEID, row_pp1, col_pp1, FID_1x);
             B_pp2 <= apply_scanlines(V_SCANLINEMODE, B_pp1, H_SCANLINESTR, V_SCANLINEID, row_pp1, col_pp1, FID_1x);
             HSYNC_pp2 <= HSYNC_pp1;
             VSYNC_pp2 <= VSYNC_pp1;
             DE_pp2 <= DE_pp1;
-            
+       
             // pp2 - mask
             R_out <= apply_mask(1, R_pp2, H_MASK_BR, hcnt_act, H_BACKPORCH+H_MASK+2'h2, H_BACKPORCH+H_ACTIVE-H_MASK+2'h2, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
             G_out <= apply_mask(1, G_pp2, H_MASK_BR, hcnt_act, H_BACKPORCH+H_MASK+2'h2, H_BACKPORCH+H_ACTIVE-H_MASK+2'h2, vcnt_act, V_BACKPORCH+V_MASK, V_BACKPORCH+V_ACTIVE-V_MASK);
@@ -577,6 +632,7 @@ begin
             hcnt_1x <= 0;
             hmax[0] <= 0;
             hmax[1] <= 0;
+            hmax_sample <= 0;
             line_idx <= 0;
             vcnt_1x <= 0;
             vcnt_1x_tvp <= 0;
@@ -622,6 +678,7 @@ begin
                 begin
                     hcnt_1x <= 0;
                     hmax[line_idx] <= hcnt_1x;
+                    hmax_sample <= hcnt_1x_sample_offset;
                     line_idx <= line_idx ^ 1'b1;
                     vcnt_1x <= vcnt_1x + 1'b1;
                     vcnt_1x_tvp <= vcnt_1x_tvp + 1'b1;
@@ -1075,10 +1132,12 @@ always @(*) begin
     { R_lbuf, G_lbuf, B_lbuf } = linebuf_o[`LINEBUF_READ_INDEX];
 
     for (int i = 0; i < `LINEBUF_NUM; i++)
-        if (i == `LINEBUF_WRITE_INDEX)
-            linebuf_wren[i] = H_MULTMODE != `H_MULTMODE_OPTIMIZED || hcnt_1x_sample_cnt == H_OPT_SAMPLE_SEL;
-        else
+        if (i == `LINEBUF_WRITE_INDEX) begin
+            linebuf_wren[i] = (H_MULTMODE != `H_MULTMODE_OPTIMIZED) || (hcnt_1x_sample_cnt == H_OPT_SAMPLE_SEL);
+        end
+        else begin
             linebuf_wren[i] = 1'b0;
+        end
     
 end
 
@@ -1100,8 +1159,8 @@ begin
             linebuf_write_idx <= linebuf_4xmode ? linebuf_read_idx_m1 : linebuf_read_idx;
         end
         
-        // input resolution must be <= 1K.  For now, only support 240P optimized modes (320 and 256)
-        linebuf_4xmode <= (H_MULTMODE == `H_MULTMODE_OPTIMIZED) && (V_MULTMODE == `V_MULTMODE_2X || V_MULTMODE == `V_MULTMODE_3X);
+        // input resolution must be <= 1K.
+        linebuf_4xmode <= (hmax_sample < 1024) && ((V_MULTMODE == `V_MULTMODE_2X) || (V_MULTMODE == `V_MULTMODE_3X));
     end
 end
 
