@@ -36,7 +36,7 @@ alt_8 get_mode_id(alt_u32 totlines, alt_u8 progressive, alt_u32 hz, video_type t
     alt_8 i;
     alt_u8 num_modes = sizeof(video_modes)/sizeof(mode_data_t);
     video_type mode_type;
-    mode_flags valid_lm[] = { MODE_PT, MODE_L2, (MODE_L3_GEN_16_9<<cm.cc.l3_mode), (MODE_L4_GEN_4_3<<cm.cc.l4_mode), (MODE_L5_GEN_4_3<<cm.cc.l5_mode) };
+    mode_flags valid_lm[] = { MODE_PT, (MODE_L2 | (MODE_L2<<cm.cc.l2_mode)), (MODE_L3_GEN_16_9<<cm.cc.l3_mode), (MODE_L4_GEN_4_3<<cm.cc.l4_mode), (MODE_L5_GEN_4_3<<cm.cc.l5_mode) };
     mode_flags target_lm;
     alt_u8 pt_only = 0;
 
@@ -46,20 +46,33 @@ alt_8 get_mode_id(alt_u32 totlines, alt_u8 progressive, alt_u32 hz, video_type t
     for (i=0; i<num_modes; i++) {
         mode_type = video_modes[i].type;
 
-        // disable particular mode based on input and user preference
-        if (video_modes[i].group == GROUP_DTV480P) {
-            if (cm.cc.s480p_mode == 0)  // auto
-                mode_type &= ~VIDEO_PC;
-            else if (cm.cc.s480p_mode == 2)  // VGA 640x480
+        switch (video_modes[i].group) {
+            case GROUP_NONE:
+            case GROUP_240P:
+            case GROUP_384P:
+                break;
+            case GROUP_480I:
+                valid_lm[2] = MODE_L3_GEN_16_9;
+                valid_lm[3] = MODE_L4_GEN_4_3;
+                break;
+            case GROUP_DTV480P:
+                if (cm.cc.s480p_mode == 0)  // auto
+                    mode_type &= ~VIDEO_PC;
+                else if (cm.cc.s480p_mode == 2)  // VGA 640x480
+                    continue;
+                break;
+            case GROUP_VGA480P:
+                if (cm.cc.s480p_mode == 0)  // auto
+                    mode_type &= ~VIDEO_EDTV;
+                else if (cm.cc.s480p_mode == 1) // DTV 480P
+                    continue;
+                break;
+            case GROUP_1080I:
+                break;
+            default:
+                printf("WARNING: Corrupted mode (id %d)\n", i);
                 continue;
-        } else if (video_modes[i].group == GROUP_VGA480P) {
-            if (cm.cc.s480p_mode == 0)  // auto
-                mode_type &= ~VIDEO_EDTV;
-            else if (cm.cc.s480p_mode == 1) // DTV 480P
-                continue;
-        } else if (video_modes[i].group > GROUP_1080I) {
-            printf("WARNING: Corrupted mode (id %d)\n", i);
-            continue;
+                break;
         }
 
         target_lm = valid_lm[*group_ptr[video_modes[i].group]];
@@ -71,9 +84,9 @@ alt_8 get_mode_id(alt_u32 totlines, alt_u8 progressive, alt_u32 hz, video_type t
             cm.hdmitx_pixr_ifr = 0;
             cm.sample_mult = 1;
             cm.hsync_cut = 0;
-            cm.target_lm = target_lm;
+            cm.target_lm = target_lm & video_modes[i].flags;    //ensure L2 mode uniqueness
 
-            switch (target_lm) {
+            switch (cm.target_lm) {
                 case MODE_PT:
                     cm.fpga_vmultmode = FPGA_V_MULTMODE_1X;
                     cm.fpga_hmultmode = FPGA_H_MULTMODE_FULLWIDTH;
@@ -93,9 +106,21 @@ alt_8 get_mode_id(alt_u32 totlines, alt_u8 progressive, alt_u32 hz, video_type t
                                           //(video_modes[i].group == GROUP_VGA480P) ||
                                           ((video_modes[i].group == GROUP_1080I) && (video_modes[i].h_total < 1200))) ? HDMITX_PIXELREP_2X : HDMITX_PIXELREP_DISABLE;
                     break;
+                case MODE_L2_256_COL:
+                    cm.fpga_vmultmode = FPGA_V_MULTMODE_2X;
+                    cm.fpga_hmultmode = FPGA_H_MULTMODE_OPTIMIZED;
+                    cm.sample_mult = 6;
+                    break;
+                case MODE_L2_320_COL:
+                    cm.fpga_vmultmode = FPGA_V_MULTMODE_2X;
+                    cm.fpga_hmultmode = FPGA_H_MULTMODE_OPTIMIZED;
+                    cm.sample_mult = 4;
+                    break;
                 case MODE_L3_GEN_16_9:
                     cm.fpga_vmultmode = FPGA_V_MULTMODE_3X;
                     cm.fpga_hmultmode = FPGA_H_MULTMODE_FULLWIDTH;
+                    if (video_modes[i].group == GROUP_480I)
+                        cm.hdmitx_pixelrep = HDMITX_PIXELREP_2X;
                     break;
                 case MODE_L3_GEN_4_3:
                     cm.fpga_vmultmode = FPGA_V_MULTMODE_3X;
@@ -114,6 +139,8 @@ alt_8 get_mode_id(alt_u32 totlines, alt_u8 progressive, alt_u32 hz, video_type t
                 case MODE_L4_GEN_4_3:
                     cm.fpga_vmultmode = FPGA_V_MULTMODE_4X;
                     cm.fpga_hmultmode = FPGA_H_MULTMODE_FULLWIDTH;
+                    if (video_modes[i].group == GROUP_480I)
+                        cm.hdmitx_pixelrep = HDMITX_PIXELREP_2X;
                     break;
                 case MODE_L4_320_COL:
                     cm.fpga_vmultmode = FPGA_V_MULTMODE_4X;

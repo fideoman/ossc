@@ -48,6 +48,7 @@ typedef struct {
     alt_u8 sl_str;
     alt_u8 sl_id;
     alt_u8 linemult_target;
+    alt_u8 l2_mode;
     alt_u8 l3_mode;
     alt_u8 l4_mode;
     alt_u8 l5_mode;
@@ -62,6 +63,7 @@ typedef struct {
     alt_u8 v_mask;
     alt_u8 mask_br;
     alt_u8 tx_mode;
+    alt_u8 hdmi_itc;
     alt_u8 s480p_mode;
     alt_u8 sampler_phase;
     alt_u8 tvp_hpll2x;

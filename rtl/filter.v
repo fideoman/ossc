@@ -45,6 +45,7 @@ module filter (
     input hsync_in,
     input vsync_in,
     input dataenable_in,
+    input mask_enable_in,
 
     output reg [23:0] data_out,
     output reg hsync_out,
@@ -52,6 +53,7 @@ module filter (
     output reg dataenable_out,
     output reg [2:0] col_id_out,
     output reg [2:0] line_id_out,
+    output reg mask_enable_out,
 
     input reset_n    
 );
@@ -60,12 +62,14 @@ module filter (
 wire hsync_f0;
 wire vsync_f0;
 wire dataenable_f0;
+wire mask_enable_f0;
 
 reg [23:0] matrix_f0[9];
 
 assign hsync_f0 = hsync_in;
 assign vsync_f0 = vsync_in;
 assign dataenable_f0 = dataenable_in;
+assign mask_enable_f0 = mask_enable_in;
 
 `define CMP_DELTA 32
 `define DISTANCE_DELTA 8
@@ -432,6 +436,7 @@ reg [23:0] curr_pp0;
 reg hsync_f[`FILTER_STAGES];
 reg vsync_f[`FILTER_STAGES];
 reg dataenable_f[`FILTER_STAGES];
+reg mask_enable_f[`FILTER_STAGES];
 
 // scale
 reg [23:0] scale_o[3][3], scale_o_d1[3][3], scale_col_o[3];
@@ -507,6 +512,7 @@ begin
             hsync_out <= 0;
             vsync_out <= 0;
             dataenable_out <= 0;
+            mask_enable_out <= 0;
         end
     else
         begin
@@ -526,6 +532,7 @@ begin
             hsync_f[0] <= hsync_f0;
             vsync_f[0] <= vsync_f0;
             dataenable_f[0] <= dataenable_f0;
+            mask_enable_f[0] <= mask_enable_f0;
             row_f[0] <= row;
             col_f[0] <= col;
             line_id_f[0] <= line_id;
@@ -536,6 +543,7 @@ begin
                 hsync_f[i] <= hsync_f[i-1];
                 vsync_f[i] <= vsync_f[i-1];
                 dataenable_f[i] <= dataenable_f[i-1];
+                mask_enable_f[i] <= mask_enable_f[i-1];
                 row_f[i] <= row_f[i-1];
                 col_f[i] <= col_f[i-1];
                 line_id_f[i] <= line_id_f[i-1];
@@ -652,7 +660,6 @@ begin
             // f3
             hq_o <= FinalBlend(hq_op, hq_ic, hq_data_f3[`FT_E], hq_data_f3[`FT_A], hq_data_f3[`FT_B], hq_data_f3[`FT_D]);
  
-
             copy_o[0][0][0] <= pixel_diff(matrix_f0[`FT_E], matrix_f0[`FT_A]) ? 24'HFF0000 : 24'H00FF00;
             copy_o[0][0][1] <= pixel_diff(matrix_f0[`FT_E], matrix_f0[`FT_B]) ? 24'HFF0000 : 24'H00FF00;
             copy_o[0][0][2] <= pixel_diff(matrix_f0[`FT_E], matrix_f0[`FT_C]) ? 24'HFF0000 : 24'H00FF00;
@@ -662,6 +669,16 @@ begin
             copy_o[0][2][0] <= pixel_diff(matrix_f0[`FT_E], matrix_f0[`FT_G]) ? 24'HFF0000 : 24'H00FF00;
             copy_o[0][2][1] <= pixel_diff(matrix_f0[`FT_E], matrix_f0[`FT_H]) ? 24'HFF0000 : 24'H00FF00;
             copy_o[0][2][2] <= pixel_diff(matrix_f0[`FT_E], matrix_f0[`FT_I]) ? 24'HFF0000 : 24'H00FF00;
+
+            // copy_o[0][0][0] <= matrix_f0[`FT_A];
+            // copy_o[0][0][1] <= matrix_f0[`FT_B];
+            // copy_o[0][0][2] <= matrix_f0[`FT_C];
+            // copy_o[0][1][0] <= matrix_f0[`FT_D];
+            // copy_o[0][1][1] <= matrix_f0[`FT_E];
+            // copy_o[0][1][2] <= matrix_f0[`FT_F];
+            // copy_o[0][2][0] <= matrix_f0[`FT_G];
+            // copy_o[0][2][1] <= matrix_f0[`FT_H];
+            // copy_o[0][2][2] <= matrix_f0[`FT_I];
             
             for (int i = `FILTER_STAGES - 1; i > 0; i--) begin
                 copy_o[i] <= copy_o[i-1];
@@ -686,6 +703,7 @@ begin
             hsync_out <= hsync_f[`FILTER_STAGES-1];
             vsync_out <= vsync_f[`FILTER_STAGES-1];
             dataenable_out <= dataenable_f[`FILTER_STAGES-1];
+            mask_enable_out <= mask_enable_f[`FILTER_STAGES-1];
             line_id_out <= line_id_f[`FILTER_STAGES-1];
             col_id_out <= col_id_f[`FILTER_STAGES-1];
         end

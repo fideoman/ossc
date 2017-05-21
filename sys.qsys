@@ -316,27 +316,27 @@
    type="conduit"
    dir="end" />
  <interface
-   name="pio_2_horizontal_info_out"
+   name="pio_2_status_in"
    internal="pio_2.external_connection"
    type="conduit"
    dir="end" />
  <interface
-   name="pio_3_vertical_info_out"
+   name="pio_3_h_info_out"
    internal="pio_3.external_connection"
    type="conduit"
    dir="end" />
  <interface
-   name="pio_4_linecount_in"
+   name="pio_4_h_info2_out"
    internal="pio_4.external_connection"
    type="conduit"
    dir="end" />
  <interface
-   name="pio_5_horizontal_info2_out"
+   name="pio_5_v_info_out"
    internal="pio_5.external_connection"
    type="conduit"
    dir="end" />
  <interface
-   name="pio_6_filter_info_out"
+   name="pio_6_extra_info_out"
    internal="pio_6.external_connection"
    type="conduit"
    dir="end" />
@@ -664,7 +664,7 @@
   <parameter name="bitModifyingOutReg" value="false" />
   <parameter name="captureEdge" value="false" />
   <parameter name="clockRate" value="27000000" />
-  <parameter name="direction" value="Output" />
+  <parameter name="direction" value="Input" />
   <parameter name="edgeType" value="RISING" />
   <parameter name="generateIRQ" value="false" />
   <parameter name="irqType" value="LEVEL" />
@@ -692,7 +692,7 @@
   <parameter name="bitModifyingOutReg" value="false" />
   <parameter name="captureEdge" value="false" />
   <parameter name="clockRate" value="27000000" />
-  <parameter name="direction" value="Input" />
+  <parameter name="direction" value="Output" />
   <parameter name="edgeType" value="RISING" />
   <parameter name="generateIRQ" value="false" />
   <parameter name="irqType" value="LEVEL" />

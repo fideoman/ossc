@@ -4,7 +4,7 @@
  * Machine generated for CPU 'nios2_qsys_0' in SOPC Builder design 'sys'
  * SOPC Builder design path: ../../sys.sopcinfo
  *
- * Generated: Sat Feb 11 19:48:41 PST 2017
+ * Generated: Sat May 20 12:15:04 PDT 2017
  */
 
 /*
@@ -389,8 +389,8 @@
 #define PIO_2_DRIVEN_SIM_VALUE 0
 #define PIO_2_EDGE_TYPE "NONE"
 #define PIO_2_FREQ 27000000
-#define PIO_2_HAS_IN 0
-#define PIO_2_HAS_OUT 1
+#define PIO_2_HAS_IN 1
+#define PIO_2_HAS_OUT 0
 #define PIO_2_HAS_TRI 0
 #define PIO_2_IRQ -1
 #define PIO_2_IRQ_INTERRUPT_CONTROLLER_ID -1
@@ -443,8 +443,8 @@
 #define PIO_4_DRIVEN_SIM_VALUE 0
 #define PIO_4_EDGE_TYPE "NONE"
 #define PIO_4_FREQ 27000000
-#define PIO_4_HAS_IN 1
-#define PIO_4_HAS_OUT 0
+#define PIO_4_HAS_IN 0
+#define PIO_4_HAS_OUT 1
 #define PIO_4_HAS_TRI 0
 #define PIO_4_IRQ -1
 #define PIO_4_IRQ_INTERRUPT_CONTROLLER_ID -1
