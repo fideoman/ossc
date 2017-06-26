@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2015-2016  Markus Hiienkari <mhiienka@niksula.hut.fi>
+// Copyright (C) 2015-2017  Markus Hiienkari <mhiienka@niksula.hut.fi>
 //
 // This file is part of Open Source Scan Converter project.
 //
@@ -73,7 +73,7 @@ static void value_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, "    %u",
 static void ft_str_disp(alt_u8 v) { sniprintf(menu_row2, LCD_ROW_LEN+1, "%u%%", (v+1)*100 / 8); }
 
 MENU(menu_advtiming, P99_PROTECT({ \
-    { LNG("H. samplerate","ｽｲﾍｲｻﾝﾌﾟﾙﾚﾄ"),        OPT_AVCONFIG_NUMVAL_U16,{ .num_u16 = { &tc_h_samplerate, H_TOTAL_MIN,   H_TOTAL_MAX, vm_tweak } } },
+    { LNG("H. samplerate","ｽｲﾍｲｻﾝﾌﾟﾙﾚｰﾄ"),        OPT_AVCONFIG_NUMVAL_U16,{ .num_u16 = { &tc_h_samplerate, H_TOTAL_MIN,   H_TOTAL_MAX, vm_tweak } } },
     { LNG("H. synclen","ｽｲﾍｲﾗｲﾝﾄﾞｳｷｼﾝｺﾞ"),       OPT_AVCONFIG_NUMVAL_U16,{ .num_u16 = { &tc_h_synclen,    H_SYNCLEN_MIN, H_SYNCLEN_MAX, vm_tweak } } },
     { LNG("H. backporch","ｽｲﾍｲﾊﾞｯｸﾎﾟｰﾁ"),        OPT_AVCONFIG_NUMVAL_U16,{ .num_u16 = { &tc_h_bporch,     H_BPORCH_MIN,  H_BPORCH_MAX, vm_tweak } } },
     { LNG("H. active","ｽｲﾍｲｱｸﾃｨﾌﾞ"),             OPT_AVCONFIG_NUMVAL_U16,{ .num_u16 = { &tc_h_active,     H_ACTIVE_MIN,  H_ACTIVE_MAX, vm_tweak } } },
@@ -102,10 +102,10 @@ MENU(menu_sampling, P99_PROTECT({ \
 }))
 
 MENU(menu_sync, P99_PROTECT({ \
-    { LNG("Analog sync LPF","ｱﾅﾛｸﾞﾄﾞｳｷ LPF"),     OPT_AVCONFIG_SELECTION, { .sel = { &tc.sync_lpf,    OPT_WRAP,   SETTING_ITEM(sync_lpf_desc) } } },
-    { LNG("Analog sync Vth","ｱﾅﾛｸﾞﾄﾞｳｷ Vth"),     OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.sync_vth,    OPT_NOWRAP, 0, SYNC_VTH_MAX, sync_vth_disp } } },
-    { LNG("Hsync tolerance","ｽｲﾍｲﾄﾞｳｷｺｳｻ"),      OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.linelen_tol, OPT_NOWRAP, 0, 0xFF, intclks_to_time_disp } } },
-    { LNG("Vsync threshold","ｽｲﾁｮｸﾄﾞｳｷｹﾞﾝｶｲﾃﾝ"),  OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.vsync_thold, OPT_NOWRAP, VSYNC_THOLD_MIN, VSYNC_THOLD_MAX, intclks_to_time_disp } } },
+    { LNG("Analog sync LPF","ｱﾅﾛｸﾞﾄﾞｳｷ LPF"),    OPT_AVCONFIG_SELECTION, { .sel = { &tc.sync_lpf,    OPT_WRAP,   SETTING_ITEM(sync_lpf_desc) } } },
+    { LNG("Analog sync Vth","ｱﾅﾛｸﾞﾄﾞｳｷ Vth"),    OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.sync_vth,    OPT_NOWRAP, 0, SYNC_VTH_MAX, sync_vth_disp } } },
+    { LNG("Hsync tolerance","Hsyncｺｳｻ"),        OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.linelen_tol, OPT_NOWRAP, 0, 0xFF, intclks_to_time_disp } } },
+    { LNG("Vsync threshold","Vsyncｼｷｲﾁ"),       OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.vsync_thold, OPT_NOWRAP, VSYNC_THOLD_MIN, VSYNC_THOLD_MAX, intclks_to_time_disp } } },
     { "H-PLL Pre-Coast",                        OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.pre_coast,   OPT_NOWRAP, 0, PLL_COAST_MAX, lines_disp } } },
     { "H-PLL Post-Coast",                       OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.post_coast,  OPT_NOWRAP, 0, PLL_COAST_MAX, lines_disp } } },
 }))
@@ -139,7 +139,12 @@ MENU(menu_postproc, P99_PROTECT({ \
     { "Filter str.",                             OPT_AVCONFIG_NUMVALUE,  { .num = { &tc.ft_str,      OPT_NOWRAP, 0, FILTERSTR_MAX, ft_str_disp } } },
 }))
 
-#ifdef DIY_AUDIO
+MENU(menu_compatibility, P99_PROTECT({ \
+    { LNG("Full TX setup","ﾌﾙTXｾｯﾄｱｯﾌﾟ"),                          OPT_AVCONFIG_SELECTION, { .sel = { &tc.full_tx_setup,    OPT_WRAP, SETTING_ITEM(off_on_desc) } } },
+    { LNG("AV3 interlacefix","AV3ｲﾝﾀｰﾚｰｽｼｭｳｾｲ"),                       OPT_AVCONFIG_SELECTION, { .sel = { &tc.vga_ilace_fix,   OPT_WRAP, SETTING_ITEM(off_on_desc) } } },
+}))
+
+#ifdef ENABLE_AUDIO
 MENU(menu_audio, P99_PROTECT({ \
     { LNG("Down-sampling","ﾀﾞｳﾝｻﾝﾌﾟﾘﾝｸﾞ"),       OPT_AVCONFIG_SELECTION, { .sel = { &tc.audio_dw_sampl, OPT_WRAP, SETTING_ITEM(audio_dw_sampl_desc) } } },
     { LNG("Swap left/right","ﾋﾀﾞﾘ/ﾐｷﾞｽﾜｯﾌﾟ"),    OPT_AVCONFIG_SELECTION, { .sel = { &tc.audio_swap_lr,  OPT_WRAP, SETTING_ITEM(off_on_desc) } } },
@@ -156,6 +161,7 @@ MENU(menu_main, P99_PROTECT({ \
     { LNG("Sync opt.      >","ﾄﾞｳｷｵﾌﾟｼｮﾝ    >"),  OPT_SUBMENU,            { .sub = { &menu_sync, NULL } } },
     { LNG("Output opt.    >","ｼｭﾂﾘｮｸｵﾌﾟｼｮﾝ  >"),  OPT_SUBMENU,            { .sub = { &menu_output, NULL } } },
     { LNG("Post-proc.     >","ｱﾄｼｮﾘ         >"),  OPT_SUBMENU,            { .sub = { &menu_postproc, NULL } } },
+    { LNG("Compatibility  >","ｺﾞｶﾝｾｲ        >"), OPT_SUBMENU,            { .sub = { &menu_compatibility, NULL } } },
     AUDIO_MENU
     { LNG("<Load profile >","<ﾌﾟﾛﾌｧｲﾙﾛｰﾄﾞ    >"), OPT_SUBMENU,            { .sub = { NULL, load_profile_disp } } },
     { LNG("<Save profile >","<ﾌﾟﾛﾌｧｲﾙｾｰﾌﾞ    >"), OPT_SUBMENU,            { .sub = { NULL, save_profile_disp } } },

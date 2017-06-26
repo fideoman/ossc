@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2015-2016  Markus Hiienkari <mhiienka@niksula.hut.fi>
+// Copyright (C) 2015-2017  Markus Hiienkari <mhiienka@niksula.hut.fi>
 //
 // This file is part of Open Source Scan Converter project.
 //
@@ -48,7 +48,6 @@ const avconfig_t tc_default = {
     .pm_480i = 1,
     .pm_1080i = 1,
     .tvp_hpll2x = 1,
-    .hdmi_itc = 1,
     .sampler_phase = DEFAULT_SAMPLER_PHASE,
     .sync_vth = DEFAULT_SYNC_VTH,
     .linelen_tol = DEFAULT_LINELEN_TOL,
@@ -57,7 +56,7 @@ const avconfig_t tc_default = {
     .pre_coast = DEFAULT_PRE_COAST,
     .post_coast = DEFAULT_POST_COAST,
     .ft_str = DEFAULT_FILTER_STR,
-#ifdef DIY_AUDIO
+#ifdef ENABLE_AUDIO
     .audio_dw_sampl = DEFAULT_ON,
     .tx_mode = TX_HDMI,
 #endif
@@ -74,7 +73,7 @@ const avconfig_t tc_default = {
 int set_default_avconfig()
 {
     memcpy(&tc, &tc_default, sizeof(avconfig_t));
-#ifndef DIY_AUDIO
+#ifndef ENABLE_AUDIO
     tc.tx_mode = !!(IORD_ALTERA_AVALON_PIO_DATA(PIO_1_BASE) & HDMITX_MODE_MASK);
 #endif
 

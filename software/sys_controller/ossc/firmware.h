@@ -26,7 +26,7 @@
 #define FW_VER_MAJOR            0
 #define FW_VER_MINOR            77
 
-#ifdef DIY_AUDIO
+#ifdef ENABLE_AUDIO
 #define FW_SUFFIX1              "a"
 #else
 #define FW_SUFFIX1              ""

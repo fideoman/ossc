@@ -1,4 +1,4 @@
-//
+//
 // Copyright (C) 2015-2017  Markus Hiienkari <mhiienka@niksula.hut.fi>
 //
 // This file is part of Open Source Scan Converter project.
@@ -149,9 +149,9 @@ reg [2:0] pclk_5x_cnt;
 
 //configuration registers
 reg [10:0] H_ACTIVE;    //max. 2047
-reg [8:0] H_BACKPORCH;  //max. 511
+reg [9:0] H_AVIDSTART;  //max. 1023
 reg [10:0] V_ACTIVE;    //max. 2047
-reg [5:0] V_BACKPORCH;  //max. 63
+reg [6:0] V_AVIDSTART;  //max. 127
 reg [7:0] H_SYNCLEN;
 reg [2:0] V_SYNCLEN;
 reg [1:0] V_SCANLINEMODE;
@@ -496,7 +496,7 @@ always @(posedge pclk_act)
 begin
     line_id_pp1 <= line_id_act;
     col_id_pp1 <= col_id_act;
-    mask_enable_pp1 <= ((hcnt_act < H_SYNCLEN+H_BACKPORCH+H_MASK) | (hcnt_act >= H_SYNCLEN+H_BACKPORCH+H_ACTIVE-H_MASK) | (vcnt_act < V_SYNCLEN+V_BACKPORCH+V_MASK) | (vcnt_act >= V_SYNCLEN+V_BACKPORCH+V_ACTIVE-V_MASK));
+    mask_enable_pp1 <= ((hcnt_act < H_AVIDSTART+H_MASK) | (hcnt_act >= H_AVIDSTART+H_ACTIVE-H_MASK) | (vcnt_act < V_AVIDSTART+V_MASK) | (vcnt_act >= V_AVIDSTART+V_ACTIVE-V_MASK));
     col_pp1 <= col_act;
     row_pp1 <= row_act;
     
@@ -572,7 +572,13 @@ end
 assign h_unstable = (warn_h_unstable != 0);
 assign pll_lock_lost = {(warn_pll_lock_lost != 0), (warn_pll_lock_lost_3x != 0)};
 
-//Check if TVP7002 is skipping VSYNCs (occurs with interlace on TTL sync). 
+//Detect if TVP7002 is skipping VSYNCs. This occurs for interlaced signals fed via digital sync inputs,
+//causing TVP7002 not to regenerate VSYNC for field 1. Moreover, if leading edges of HSYNC and VSYNC are
+//too far from each other for field 0, no VSYNC is regenerated at all. This can be avoided by disabling
+//doubled sampling rates ("AV3 interlacefix") and/or minimizing VSYNC delay induced by RC filter on PCB.
+//However, TVP7002 datasheet warns that HSYNC/VSYNC should not change simultaneously, so leaving out the
+//filter may lead to stability issues and is not recommended. A combination of 220ohm resistor and 1nF
+//capacitor seems to be optimal for 480i/576i, including doubled sampling rates.
 always @(posedge clk27 or negedge reset_n)
 begin
     if (!reset_n) begin
@@ -693,13 +699,13 @@ begin
             H_MULTMODE <= h_info[31:30];    // Horizontal scaling mode
             V_MULTMODE <= v_info[31:29];    // Line multiply mode
 
-            H_SYNCLEN <= h_info[27:20];
-            H_BACKPORCH <= h_info[19:11];   // Horizontal backporch length from by the CPU - 9bits (0...511)
-            H_ACTIVE <= h_info[10:0];       // Horizontal active length from by the CPU - 11bits (0...2047)
+            H_SYNCLEN <= h_info[27:20];                     // Horizontal sync length (0...255)
+            H_AVIDSTART <= h_info[19:11] + h_info[27:20];   // Horizontal sync+backporch length (0...1023)
+            H_ACTIVE <= h_info[10:0];                       // Horizontal active length (0...2047)
 
-            V_SYNCLEN <= v_info[19:17];
-            V_BACKPORCH <= v_info[16:11];   // Vertical backporch length from by the CPU, 6bits (0...64)
-            V_ACTIVE <= v_info[10:0];       // Vertical active length from by the CPU, 11bits (0...2047)
+            V_SYNCLEN <= v_info[19:17];                     // Vertical sync length (0...7)
+            V_AVIDSTART <= v_info[16:11] + v_info[19:17];   // Vertical sync+backporch length (0...127)
+            V_ACTIVE <= v_info[10:0];                       // Vertical active length (0...2047)
 
             H_MASK <= h_info2[28:19];
             V_MASK <= v_info[25:20];
@@ -744,7 +750,7 @@ begin
             VSYNC_1x <= (vcnt_1x < V_SYNCLEN) ? `VSYNC_POL : ~`VSYNC_POL;
         else
             VSYNC_1x <= (((vcnt_1x+1'b1) < V_SYNCLEN) | ((vcnt_1x+1'b1 == V_SYNCLEN) & (hcnt_1x <= (hmax[~line_idx]>>1)))) ? `VSYNC_POL : ~`VSYNC_POL;
-        DE_1x <= ((hcnt_1x >= H_SYNCLEN+H_BACKPORCH) & (hcnt_1x < H_SYNCLEN+H_BACKPORCH+H_ACTIVE)) & ((vcnt_1x >= V_SYNCLEN+V_BACKPORCH) & (vcnt_1x < V_SYNCLEN+V_BACKPORCH+V_ACTIVE));
+        DE_1x <= ((hcnt_1x >= H_AVIDSTART) & (hcnt_1x < H_AVIDSTART+H_ACTIVE)) & ((vcnt_1x >= V_AVIDSTART) & (vcnt_1x < V_AVIDSTART+V_ACTIVE));
         FID_1x <= FID_cur;
     end
 end
@@ -794,7 +800,7 @@ begin
 
         HSYNC_2x <= (hcnt_2x < H_SYNCLEN) ? `HSYNC_POL : ~`HSYNC_POL;
         VSYNC_2x <= (vcnt_2x < V_SYNCLEN) ? `VSYNC_POL : ~`VSYNC_POL;
-        DE_2x <= ((hcnt_2x >= H_SYNCLEN+H_BACKPORCH) & (hcnt_2x < H_SYNCLEN+H_BACKPORCH+H_ACTIVE)) & ((vcnt_2x >= V_SYNCLEN+V_BACKPORCH) & (vcnt_2x < V_SYNCLEN+V_BACKPORCH+V_ACTIVE));
+        DE_2x <= ((hcnt_2x >= H_AVIDSTART) & (hcnt_2x < H_AVIDSTART+H_ACTIVE)) & ((vcnt_2x >= V_AVIDSTART) & (vcnt_2x < V_AVIDSTART+V_ACTIVE));
     end
 end
 
@@ -840,13 +846,13 @@ begin
                 col_3x <= col_3x + 3'h1;
         end
 
-            //track pclk_3x alignment to pclk_1x rising edge (pclk_1x=1 @ 120deg & pclk_1x=0 @ 240deg)
-            if (((pclk_1x_prev3x == 1'b1) & (pclk_1x == 1'b0)) | (pclk_3x_cnt == 2'h2))
-                pclk_3x_cnt <= 0;
-            else
-                pclk_3x_cnt <= pclk_3x_cnt + 1'b1;
+        //track pclk_3x alignment to pclk_1x rising edge (pclk_1x=1 @ 120deg & pclk_1x=0 @ 240deg)
+        if (((pclk_1x_prev3x == 1'b1) & (pclk_1x == 1'b0)) | (pclk_3x_cnt == 2'h2))
+            pclk_3x_cnt <= 0;
+        else
+            pclk_3x_cnt <= pclk_3x_cnt + 1'b1;
 
-            pclk_1x_prev3x <= pclk_1x;
+        pclk_1x_prev3x <= pclk_1x;
 
         HSYNC_3x <= (hcnt_3x < H_SYNCLEN) ? `HSYNC_POL : ~`HSYNC_POL;
         if (FID_cur == `FID_EVEN)
@@ -858,7 +864,7 @@ begin
                 VSYNC_3x <= ~`VSYNC_POL;
         end
         
-        DE_3x <= ((hcnt_3x >= H_SYNCLEN+H_BACKPORCH) & (hcnt_3x < H_SYNCLEN+H_BACKPORCH+H_ACTIVE)) & ((vcnt_3x >= V_SYNCLEN+V_BACKPORCH) & (vcnt_3x < V_SYNCLEN+V_BACKPORCH+V_ACTIVE));
+        DE_3x <= ((hcnt_3x >= H_AVIDSTART) & (hcnt_3x < H_AVIDSTART+H_ACTIVE)) & ((vcnt_3x >= V_AVIDSTART) & (vcnt_3x < V_AVIDSTART+V_ACTIVE));
     end
 end
 
@@ -869,15 +875,15 @@ begin
         vcnt_4x <= 0;
         line_out_idx_4x <= 0;
     end else begin
-    
-            // TODO: better implementation
-            if ((DE_3x == 1) & (DE_3x_prev4x == 0))
-                hcnt_4x_aspfix <= hcnt_3x - 160;
-            else
-                hcnt_4x_aspfix <= hcnt_4x_aspfix + 1'b1;
 
-            DE_3x_prev4x <= DE_3x;
-    
+        // TODO: better implementation
+        if ((DE_3x == 1) & (DE_3x_prev4x == 0))
+            hcnt_4x_aspfix <= hcnt_3x - 160;
+        else
+            hcnt_4x_aspfix <= hcnt_4x_aspfix + 1'b1;
+
+        DE_3x_prev4x <= DE_3x;
+
         if ((pclk_4x_cnt == 0) & (line_change | frame_change)) begin  //aligned with posedge of pclk_1x
             hcnt_4x <= 0;
             hcnt_4x_opt <= 0; // H_OPT_SAMPLE_SEL;
@@ -904,18 +910,18 @@ begin
                     hcnt_4x_opt_ctr <= hcnt_4x_opt_ctr + 1'b1;
             end
         end
-        
-            //track pclk_4x alignment to pclk_1x rising edge (pclk_1x=1 @ 180deg & pclk_1x=0 @ 270deg)
-            if (((pclk_1x_prev4x == 1'b1) & (pclk_1x == 1'b0)) | (pclk_4x_cnt == 2'h3))
-                pclk_4x_cnt <= 0;
-            else
-                pclk_4x_cnt <= pclk_4x_cnt + 1'b1;
-                
-            pclk_1x_prev4x <= pclk_1x;
+
+        //track pclk_4x alignment to pclk_1x rising edge (pclk_1x=1 @ 180deg & pclk_1x=0 @ 270deg)
+        if (((pclk_1x_prev4x == 1'b1) & (pclk_1x == 1'b0)) | (pclk_4x_cnt == 2'h3))
+            pclk_4x_cnt <= 0;
+        else
+            pclk_4x_cnt <= pclk_4x_cnt + 1'b1;
+
+        pclk_1x_prev4x <= pclk_1x;
 
         HSYNC_4x <= (hcnt_4x < H_SYNCLEN) ? `HSYNC_POL : ~`HSYNC_POL;
         VSYNC_4x <= (vcnt_4x < V_SYNCLEN) ? `VSYNC_POL : ~`VSYNC_POL;
-        DE_4x <= ((hcnt_4x >= H_SYNCLEN+H_BACKPORCH) & (hcnt_4x < H_SYNCLEN+H_BACKPORCH+H_ACTIVE)) & ((vcnt_4x >= V_SYNCLEN+V_BACKPORCH) & (vcnt_4x < V_SYNCLEN+V_BACKPORCH+V_ACTIVE));
+        DE_4x <= ((hcnt_4x >= H_AVIDSTART) & (hcnt_4x < H_AVIDSTART+H_ACTIVE)) & ((vcnt_4x >= V_AVIDSTART) & (vcnt_4x < V_AVIDSTART+V_ACTIVE));
     end
 end
 
@@ -951,20 +957,20 @@ begin
             end
         end
 
-            //track pclk_5x alignment to pclk_1x rising edge (pclk_1x=1 @ 144deg & pclk_1x=0 @ 216deg & pclk_1x=0 @ 288deg)
-            if (((pclk_1x_prevprev5x == 1'b1) & (pclk_1x_prev5x == 1'b0)) | (pclk_5x_cnt == 3'h4))
-                pclk_5x_cnt <= 0;
-            else
-                pclk_5x_cnt <= pclk_5x_cnt + 1'b1;
-                
-            pclk_1x_prev5x <= pclk_1x;
-            pclk_1x_prevprev5x <= pclk_1x_prev5x;
-            
-            hcnt_5x_hscomp <= hcnt_5x + 11'd121;
+        //track pclk_5x alignment to pclk_1x rising edge (pclk_1x=1 @ 144deg & pclk_1x=0 @ 216deg & pclk_1x=0 @ 288deg)
+        if (((pclk_1x_prevprev5x == 1'b1) & (pclk_1x_prev5x == 1'b0)) | (pclk_5x_cnt == 3'h4))
+            pclk_5x_cnt <= 0;
+        else
+            pclk_5x_cnt <= pclk_5x_cnt + 1'b1;
+
+        pclk_1x_prev5x <= pclk_1x;
+        pclk_1x_prevprev5x <= pclk_1x_prev5x;
+
+        hcnt_5x_hscomp <= hcnt_5x + 11'd121;
 
         HSYNC_5x <= (hcnt_5x < H_SYNCLEN) ? `HSYNC_POL : ~`HSYNC_POL;
         VSYNC_5x <= (vcnt_5x < V_SYNCLEN) ? `VSYNC_POL : ~`VSYNC_POL;
-        DE_5x <= ((hcnt_5x >= H_SYNCLEN+H_BACKPORCH-H_L5BORDER) & (hcnt_5x < H_SYNCLEN+H_BACKPORCH+H_ACTIVE+H_L5BORDER)) & ((vcnt_5x >= V_SYNCLEN+V_BACKPORCH) & (vcnt_5x < V_SYNCLEN+V_BACKPORCH+V_ACTIVE));
+        DE_5x <= ((hcnt_5x >= H_AVIDSTART-H_L5BORDER) & (hcnt_5x < H_AVIDSTART+H_ACTIVE+H_L5BORDER)) & ((vcnt_5x >= V_AVIDSTART) & (vcnt_5x < V_AVIDSTART+V_ACTIVE));
     end
 end
 

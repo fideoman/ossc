@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2015-2016  Markus Hiienkari <mhiienka@niksula.hut.fi>
+// Copyright (C) 2015-2017  Markus Hiienkari <mhiienka@niksula.hut.fi>
 //
 // This file is part of Open Source Scan Converter project.
 //
@@ -26,6 +26,7 @@
 #include "av_controller.h"
 #include "tvp7002.h"
 #include "ths7353.h"
+#include "pcm1862.h"
 #include "video_modes.h"
 #include "lcd.h"
 #include "flash.h"
@@ -75,6 +76,9 @@ char row1[LCD_ROW_LEN+1], row2[LCD_ROW_LEN+1], menu_row1[LCD_ROW_LEN+1], menu_ro
 extern alt_u8 menu_active;
 avinput_t target_mode;
 
+alt_u8 pcm1862_active;
+
+
 inline void lcd_write_menu()
 {
     lcd_write((char*)&menu_row1, (char*)&menu_row2);
@@ -84,17 +88,17 @@ inline void lcd_write_status() {
     lcd_write((char*)&row1, (char*)&row2);
 }
 
-#ifdef DIY_AUDIO
+#ifdef ENABLE_AUDIO
 inline void SetupAudio(tx_mode_t mode)
 {
     // shut down audio-tx before setting new config (recommended for changing audio-tx config)
     DisableAudioOutput();
     EnableAudioInfoFrame(FALSE, NULL);
 
-    if (tc.tx_mode == TX_HDMI) {
+    if (mode == TX_HDMI) {
         alt_u32 pclk_out = (TVP_EXTCLK_HZ/cm.clkcnt)*video_modes[cm.id].h_total*cm.sample_mult*(cm.fpga_vmultmode+1);
 
-        pclk_out *= 1+cm.hdmitx_pixelrep;
+        pclk_out *= 1+cm.tx_pixelrep;
 
         printf("PCLK_out: %luHz\n", pclk_out);
         EnableAudioOutput4OSSC(pclk_out, tc.audio_dw_sampl, tc.audio_swap_lr);
@@ -119,16 +123,18 @@ inline void TX_enable(tx_mode_t mode)
     DisableVideoOutput();
     EnableAVIInfoFrame(FALSE, NULL);
 
-    // re-setup
+    //Setup TX configuration
+    //TODO: set pclk target and VIC dynamically
     EnableVideoOutput(PCLK_MEDIUM, COLOR_RGB444, COLOR_RGB444, !mode);
-    //TODO: set VIC based on mode
+
     if (mode == TX_HDMI) {
-        HDMITX_SetAVIInfoFrame(HDMI_Unkown, 0, 0, tc.hdmi_itc, cm.hdmitx_pixelrep);
+        HDMITX_SetAVIInfoFrame(HDMI_Unkown, 0, 0, tc.hdmi_itc, cm.hdmitx_pixr_ifr ? cm.tx_pixelrep : 0);
         cm.cc.hdmi_itc = tc.hdmi_itc;
-#ifdef DIY_AUDIO
-        SetupAudio(mode);
-#endif
     }
+
+#ifdef ENABLE_AUDIO
+    SetupAudio(mode);
+#endif
 
     // start TX
     SetAVMute(FALSE);
@@ -215,7 +221,7 @@ status_t get_status(tvp_input_t input, video_format format)
     data2 = tvp_readreg(TVP_CLKCNT2);
     clkcnt = ((data2 & 0x0f) << 8) | data1;
 
-    // Read how many lines TVP7002 outputs in reality
+    // Read how many lines TVP7002 outputs in reality (valid only if output enabled)
     totlines_tvp = ((IORD_ALTERA_AVALON_PIO_DATA(PIO_2_BASE) >> 18) & 0x7ff)+1;
 
     // NOTE: "progressive" may not have correct value if H-PLL is not locked (!cm.sync_active)
@@ -253,7 +259,8 @@ status_t get_status(tvp_input_t input, video_format format)
     }
 
     if (valid_linecnt) {
-        if ((totlines != cm.totlines) || (clkcnt != cm.clkcnt) || (progressive != cm.progressive)) {
+        // Line count reported in TVP7002 status registers is sometimes +-1 line off and may alternate with correct value. Ignore these events
+        if ((totlines > cm.totlines+1) || (totlines+1 < cm.totlines) || (clkcnt != cm.clkcnt) || (progressive != cm.progressive)) {
             printf("totlines: %lu (cur) / %lu (prev), clkcnt: %lu (cur) / %lu (prev). totlines_tvp: %u, VSM: %u\n", totlines, cm.totlines, clkcnt, cm.clkcnt, totlines_tvp, vsyncmode);
             /*if (!cm.sync_active)
                 act_ctr = 0;*/
@@ -274,7 +281,8 @@ status_t get_status(tvp_input_t input, video_format format)
             (tc.l4_mode != cm.cc.l4_mode) ||
             (tc.l5_mode != cm.cc.l5_mode) ||
             (tc.l5_fmt != cm.cc.l5_fmt) ||
-            (tc.tvp_hpll2x != cm.cc.tvp_hpll2x))
+            (tc.tvp_hpll2x != cm.cc.tvp_hpll2x) ||
+            (tc.vga_ilace_fix != cm.cc.vga_ilace_fix))
             status = (status < MODE_CHANGE) ? MODE_CHANGE : status;
 
         if ((tc.s480p_mode != cm.cc.s480p_mode) && ((video_modes[cm.id].group == GROUP_DTV480P) || (video_modes[cm.id].group == GROUP_VGA480P)))
@@ -332,7 +340,7 @@ status_t get_status(tvp_input_t input, video_format format)
     if (!memcmp(&tc.col, &cm.cc.col, sizeof(color_setup_t)))
         tvp_set_fine_gain_offset(&cm.cc.col);
 
-#ifdef DIY_AUDIO
+#ifdef ENABLE_AUDIO
     if ((tc.audio_dw_sampl != cm.cc.audio_dw_sampl) ||
 #ifdef MANUAL_CTS
         (tc.edtv_l2x != cm.cc.edtv_l2x) ||
@@ -365,6 +373,7 @@ void set_videoinfo()
     alt_u8 sl_mode_fpga;
     alt_u8 h_opt_scale = 1;
     alt_u16 h_opt_startoffs = 0;
+    alt_u16 h_synclen = video_modes[cm.id].h_synclen;
     alt_u16 h_border, h_mask;
     alt_u16 v_active = video_modes[cm.id].v_active;
     alt_u16 v_backporch = video_modes[cm.id].v_backporch;
@@ -428,15 +437,19 @@ void set_videoinfo()
             break;
     }
 
+    // CEA-770.3 HDTV modes use tri-level syncs which have twice the width of bi-level syncs of corresponding CEA-861 modes
+    if (target_type == VIDEO_HDTV)
+        h_synclen *= 2;
+
     h_border = (((cm.sample_mult-h_opt_scale)*video_modes[cm.id].h_active)/2);
     h_mask = h_border + h_opt_scale*cm.cc.h_mask;
-    h_opt_startoffs = h_border + (cm.sample_mult-h_opt_scale)*((alt_u16)video_modes[cm.id].h_synclen+(alt_u16)video_modes[cm.id].h_backporch);
+    h_opt_startoffs = h_border + (cm.sample_mult-h_opt_scale)*(h_synclen+(alt_u16)video_modes[cm.id].h_backporch);
     h_opt_startoffs = (h_opt_startoffs/cm.sample_mult)*cm.sample_mult;
     printf("h_border: %u, h_opt_startoffs: %u\n", h_border, h_opt_startoffs);
 
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_3_BASE, (cm.fpga_hmultmode<<30) |
                                             ((cm.cc.l5_fmt!=L5FMT_1600x1200)<<29) |
-                                            ((((cm.sample_mult*video_modes[cm.id].h_synclen)-cm.hsync_cut)&0xff)<<20) |
+                                            ((((cm.sample_mult*h_synclen)-cm.hsync_cut)&0xff)<<20) |
                                             (((cm.sample_mult*(alt_u16)video_modes[cm.id].h_backporch)&0x1ff)<<11) |
                                             ((cm.sample_mult*video_modes[cm.id].h_active)&0x7ff));
     IOWR_ALTERA_AVALON_PIO_DATA(PIO_4_BASE, (h_mask<<19) |
@@ -511,20 +524,21 @@ void program_mode()
     set_lpf(cm.cc.video_lpf);
     cm.sample_sel = tvp_set_hpll_phase(cm.cc.sampler_phase, cm.sample_mult);
 
-    HDMITX_SetPixelRepetition(cm.hdmitx_pixelrep, (cm.cc.tx_mode==TX_HDMI) ? cm.hdmitx_pixr_ifr : 0);
-    if (cm.cc.tx_mode==TX_HDMI)
-        HDMITX_SetAVIInfoFrame(HDMI_Unkown, 0, 0, cm.cc.hdmi_itc, cm.hdmitx_pixr_ifr ? cm.hdmitx_pixelrep : 0);
-
     set_videoinfo();
 
-    // TX re-init skipped to minimize mode switch delay
-    //TX_enable(cm.cc.tx_mode);
+    TX_SetPixelRepetition(cm.tx_pixelrep, (cm.cc.tx_mode==TX_HDMI) ? cm.hdmitx_pixr_ifr : 0);
 
-#ifdef DIY_AUDIO
+    // Full TX initialization increases mode switch delay, use only for compatibility
+    if (cm.cc.full_tx_setup) {
+        TX_enable(cm.cc.tx_mode);
+    } else if (cm.cc.tx_mode==TX_HDMI) {
+        HDMITX_SetAVIInfoFrame(HDMI_Unkown, 0, 0, cm.cc.hdmi_itc, cm.hdmitx_pixr_ifr ? cm.tx_pixelrep : 0);
+#ifdef ENABLE_AUDIO
 #ifdef MANUAL_CTS
-    SetupAudio(cm.cc.tx_mode);
+        SetupAudio(cm.cc.tx_mode);
 #endif
 #endif
+    }
 }
 
 void load_profile_disp(alt_u8 code) {
@@ -676,6 +690,13 @@ int init_hw()
 
     InitIT6613();
 
+#ifdef ENABLE_AUDIO
+    if (pcm1862_init()) {
+        printf("PCM1862 found\n");
+        pcm1862_active = 1;
+    }
+#endif
+
     if (check_flash() != 0) {
         printf("Error: incorrect flash type detected\n");
         return -1;
@@ -707,8 +728,7 @@ void enable_outputs()
     // enable TVP output
     tvp_enable_output();
 
-    // enable and unmute HDMITX
-    // TODO: check pclk
+    // enable and unmute TX
     TX_enable(tc.tx_mode);
 }
 
@@ -716,6 +736,7 @@ int main()
 {
     tvp_input_t target_input = 0;
     ths_input_t target_ths = 0;
+    pcm_input_t target_pcm = 0;
     video_format target_format = 0;
 
     alt_u8 av_init = 0;
@@ -772,54 +793,63 @@ int main()
             target_format = FORMAT_RGBS;
             target_typemask = VIDEO_LDTV|VIDEO_SDTV|VIDEO_EDTV|VIDEO_HDTV;
             target_ths = THS_INPUT_B;
+            target_pcm = PCM_INPUT4;
             break;
         case AV1_RGsB:
             target_input = TVP_INPUT1;
             target_format = FORMAT_RGsB;
             target_typemask = VIDEO_LDTV|VIDEO_SDTV|VIDEO_EDTV|VIDEO_HDTV;
             target_ths = THS_INPUT_B;
+            target_pcm = PCM_INPUT4;
             break;
         case AV1_YPBPR:
             target_input = TVP_INPUT1;
             target_format = FORMAT_YPbPr;
             target_typemask = VIDEO_LDTV|VIDEO_SDTV|VIDEO_EDTV|VIDEO_HDTV;
             target_ths = THS_INPUT_B;
+            target_pcm = PCM_INPUT4;
             break;
         case AV2_YPBPR:
             target_input = TVP_INPUT1;
             target_format = FORMAT_YPbPr;
             target_typemask = VIDEO_LDTV|VIDEO_SDTV|VIDEO_EDTV|VIDEO_HDTV;
             target_ths = THS_INPUT_A;
+            target_pcm = PCM_INPUT3;
             break;
         case AV2_RGsB:
             target_input = TVP_INPUT1;
             target_format = FORMAT_RGsB;
             target_typemask = VIDEO_LDTV|VIDEO_SDTV|VIDEO_EDTV|VIDEO_HDTV;
             target_ths = THS_INPUT_A;
+            target_pcm = PCM_INPUT3;
             break;
         case AV3_RGBHV:
             target_input = TVP_INPUT3;
             target_format = FORMAT_RGBHV;
             target_typemask = VIDEO_PC;
             target_ths = THS_STANDBY;
+            target_pcm = PCM_INPUT2;
             break;
         case AV3_RGBs:
             target_input = TVP_INPUT3;
             target_format = FORMAT_RGBS;
             target_typemask = VIDEO_LDTV|VIDEO_SDTV|VIDEO_EDTV|VIDEO_HDTV;
             target_ths = THS_STANDBY;
+            target_pcm = PCM_INPUT2;
             break;
         case AV3_RGsB:
             target_input = TVP_INPUT3;
             target_format = FORMAT_RGsB;
             target_typemask = VIDEO_LDTV|VIDEO_SDTV|VIDEO_EDTV|VIDEO_HDTV;
             target_ths = THS_STANDBY;
+            target_pcm = PCM_INPUT2;
             break;
         case AV3_YPBPR:
             target_input = TVP_INPUT3;
             target_format = FORMAT_YPbPr;
             target_typemask = VIDEO_LDTV|VIDEO_SDTV|VIDEO_EDTV|VIDEO_HDTV;
             target_ths = THS_STANDBY;
+            target_pcm = PCM_INPUT2;
             break;
         default:
             break;
@@ -831,8 +861,10 @@ int main()
             cm.sync_active = 0;
             ths_source_sel(target_ths, (cm.cc.video_lpf > 1) ? (VIDEO_LPF_MAX-cm.cc.video_lpf) : THS_LPF_BYPASS);
             tvp_disable_output();
-#ifdef DIY_AUDIO
+#ifdef ENABLE_AUDIO
             DisableAudioOutput();
+            if (pcm1862_active)
+                pcm_source_sel(target_pcm);
 #endif
             tvp_source_sel(target_input, target_format);
             cm.clkcnt = 0; //TODO: proper invalidate
@@ -854,7 +886,7 @@ int main()
         if ((tc.tx_mode == TX_HDMI) && (tc.hdmi_itc != cm.cc.hdmi_itc)) {
             //EnableAVIInfoFrame(FALSE, NULL);
             printf("setting ITC to %d\n", tc.hdmi_itc);
-            HDMITX_SetAVIInfoFrame(0, 0, 0, tc.hdmi_itc, cm.hdmitx_pixelrep);
+            HDMITX_SetAVIInfoFrame(HDMI_Unkown, 0, 0, tc.hdmi_itc, cm.hdmitx_pixr_ifr ? cm.tx_pixelrep : 0);
             cm.cc.hdmi_itc = tc.hdmi_itc;
         }
 
